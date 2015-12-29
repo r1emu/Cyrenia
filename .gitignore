@@ -1,0 +1,3 @@
+*.exe
+*.dll
+RawPacketProxy/session_id

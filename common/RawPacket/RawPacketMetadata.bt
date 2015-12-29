@@ -1,0 +1,11 @@
+
+struct RawPacketMetadata {
+    char date[sizeof("11-22-3333-44h55")];
+    char hasBarrack;
+    char barrackName[10];
+    char hasZone;
+    char zoneName[10];
+    char hasSocial;
+    char socialName[10];
+    int64 sessionId;
+} packet;

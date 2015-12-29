@@ -1,0 +1,7 @@
+<serverlist>
+	<server GROUP_ID="1004" TRAFFIC="0" ENTER_LIMIT="1000" NAME="(Proxy)" Server0_IP="127.0.0.1" Server0_Port="2000"/>
+	<server GROUP_ID="1005" TRAFFIC="0" ENTER_LIMIT="1000" NAME="&#44032;&#48708;&#50556;" Server0_IP="125.141.153.224" Server0_Port="2000" Server1_IP="125.141.153.225" Server1_Port="2001" Server2_IP="125.141.153.226" Server2_Port="2002" Server3_IP="125.141.153.227" Server3_Port="2003"/>
+	<server GROUP_ID="1003" TRAFFIC="0" ENTER_LIMIT="1000" NAME="&#46972;&#51060;&#47560;" Server0_IP="125.141.153.211" Server0_Port="2000" Server1_IP="125.141.153.212" Server1_Port="2001" Server2_IP="125.141.153.213" Server2_Port="2002" Server3_IP="125.141.153.214" Server3_Port="2003"/>
+	<server GROUP_ID="1002" TRAFFIC="0" ENTER_LIMIT="1000" NAME="&#48148;&#52852;&#47532;&#45348;" Server0_IP="125.141.153.206" Server0_Port="2000" Server1_IP="125.141.153.207" Server1_Port="2001" Server2_IP="125.141.153.208" Server2_Port="2002" Server3_IP="125.141.153.209" Server3_Port="2003"/>
+	<server GROUP_ID="1001" TRAFFIC="0" ENTER_LIMIT="1000" NAME="&#50500;&#50864;&#49800;&#47532;&#45348;" Server0_IP="125.141.153.201" Server0_Port="2000" Server1_IP="125.141.153.202" Server1_Port="2001" Server2_IP="125.141.153.203" Server2_Port="2002" Server3_IP="125.141.153.204" Server3_Port="2003"/>
+</serverlist>
