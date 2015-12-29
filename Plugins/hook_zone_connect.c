@@ -13,7 +13,7 @@
 #include "plugins.h"
 #include "dbg/dbg.h"
 #include "crypto/crypto.h"
-#include "crypto/decrypt_packet.h"
+#include "crypto/decrypt_engine.h"
 #include "PacketType/PacketType.h"
 #include <stdlib.h>
 #include <stdint.h>
@@ -58,8 +58,6 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
             char commandLine[1000];
             sprintf(commandLine, "%s %d.%d.%d.%d %d %d zone continue", executableName, serverIp[0], serverIp[1], serverIp[2], serverIp[3], packet->zoneServerPort, packet->zoneServerPort);
 
-            info ("Starting a zone server with commandline : '%s %s' ...", executableName, commandLine);
-
             STARTUPINFO si = {0};
             PROCESS_INFORMATION pi = {0};
             if (!CreateProcess (executableName, commandLine, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
@@ -71,6 +69,8 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
                 error ("Error reason : %s", errorReason);
                 return 0;
             }
+
+            special ("Zone connection hooked ! Starting a new proxy ...");
 
             // Wait a bit for the process to spawn
             Sleep (1000);

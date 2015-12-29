@@ -104,7 +104,6 @@ int foreachDecryptedPacket (uint8_t *cData, int dataSize, RawPacketType type, in
                 if (memcmp (curPacket, dDataBackup, pktSize) != 0) {
                     // Buffer modified, change the original buffer
                     memcpy (curPacketReal, curPacket, pktSize);
-                    info ("Server buffer modified ! :]");
                 }
 
                 curPacket += pktSize;

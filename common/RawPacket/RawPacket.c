@@ -15,8 +15,8 @@ int rawPacketRecv (RawPacket *self, SOCKET socket, RawPacketType type) {
     }
     
     else if (bRecvd == 0) {
-        warning ("Socket exited.");
-        return 0;
+        warning ("Socket disconnected.");
+        return -1;
     }
 
     else if (bRecvd == sizeof(self->data)) {

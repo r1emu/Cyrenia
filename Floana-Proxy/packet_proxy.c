@@ -15,7 +15,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <time.h>
-#include <pthread.h>
 
 typedef enum {
     PROXY_TYPE_BARRACK,
@@ -97,8 +96,11 @@ int client_connect (char *ip, int port, SOCKET *_server)
     return 1;
 }
 
-void *listener (void *_params)
+void *clientListener (void *_params)
 {
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+
     ProxyParameters *params = _params;
     char *captureFolder = params->captureFolder;
     SOCKET client = params->client;
@@ -114,10 +116,22 @@ void *listener (void *_params)
     RawPacket packet;
     while (1) 
     {
-        // Receive packet from game client
-        if (!(rawPacketRecv (&packet, client, RAW_PACKET_CLIENT))) {
-            error ("Cannot receive raw packet from client.");
-            exit(0);
+        // Receive packet from the game client
+        switch (rawPacketRecv (&packet, client, RAW_PACKET_CLIENT)) {
+            case 0:
+                error ("Cannot receive raw packet from the client.");
+                goto cleanup;
+            break;
+
+            case -1:
+                info ("Client disconnected from the proxy.");
+                pthread_cancel (params->hServerListener);
+                goto cleanup;
+            break;
+
+            case 1:
+                // OK
+            break;
         }
 
         // Get packet ID value
@@ -128,7 +142,7 @@ void *listener (void *_params)
         // Write it to the logs
         if (!(rawPacketWriteToFile (&packet, outputPath))) {
             error ("Cannot write packet to capture folder '%s'", outputPath);
-            break;
+            goto cleanup;
         }
 
         // If present, call the plugins callback
@@ -136,7 +150,7 @@ void *listener (void *_params)
             for (int i = 0; i < callbackCount; i++) {
                 if (!(callbacks[i] (&packet))) {
                     error ("Callback didn't succeed.");
-                    break;
+                    goto cleanup;
                 }
             }
         }
@@ -144,17 +158,23 @@ void *listener (void *_params)
         // Send it to the server
         if (!rawPacketSend (&packet, server)) {
             error ("Cannot send the raw packet to the server.");
-            break;
+            goto cleanup;
         }
 
         printf (">");
     }
 
+cleanup:
+    pthread_cancel (params->hServerListener);
+    info ("Client listener exits.");
     return NULL;
 }
 
-void *emitter (void *_params)
+void *serverListener (void *_params)
 {
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+
     ProxyParameters *params = _params;
     char *captureFolder = params->captureFolder;
     SOCKET client = params->client;
@@ -171,9 +191,20 @@ void *emitter (void *_params)
     while (1) 
     {
         // Receive packet from the server
-        if (!(rawPacketRecv (&packet, server, RAW_PACKET_SERVER))) {
-            error ("Cannot receive raw packet from server.");
-            exit(0);
+        switch (rawPacketRecv (&packet, server, RAW_PACKET_SERVER)) {
+            case 0:
+                error ("Cannot receive raw packet from the server.");
+                goto cleanup;
+            break;
+
+            case -1:
+                info ("Server disconnected from the proxy.");
+                goto cleanup;
+            break;
+
+            case 1:
+                // OK
+            break;
         }
 
         // Get packet ID value
@@ -192,7 +223,7 @@ void *emitter (void *_params)
             for (int i = 0; i < callbackCount; i++) {
                 if (!(callbacks[i] (&packet))) {
                     error ("Callback didn't succeed.");
-                    break;
+                    goto cleanup;
                 }
             }
         }
@@ -200,12 +231,15 @@ void *emitter (void *_params)
         // Send it to the client
         if (!rawPacketSend (&packet, client)) {
             error ("Cannot send the raw packet to the server.");
-            break;
+            goto cleanup;
         }
 
         printf ("<");
     }
 
+cleanup:
+    pthread_cancel (params->hClientListener);
+    info ("Server listener exits.");
     return NULL;
 }
 
@@ -300,7 +334,7 @@ int startProxy (
 
     // Init session folder
     char sessionFolder[MAX_PATH];
-    sprintf (sessionFolder, "%Id", sessionId);
+    sprintf (sessionFolder, "captures/%Id", sessionId);
     CreateDirectoryA (sessionFolder, NULL);
 
     // Update the metadata
@@ -324,8 +358,6 @@ int startProxy (
     CreateDirectoryA (captureFolder, NULL);
 
     // Start worker threads
-    pthread_t hListener;
-    pthread_t hEmitter;
     ProxyParameters params = {
         .captureFolder = captureFolder,
         .client = client,
@@ -336,10 +368,10 @@ int startProxy (
     };
     params.mutex = CreateMutex (NULL, FALSE, NULL);
 
-    pthread_create (&hListener, 0, listener, &params);
-    pthread_create (&hEmitter, 0, emitter, &params);
-    pthread_join (hListener, NULL);
-    pthread_join (hEmitter, NULL);
+    pthread_create (&params.hClientListener, 0, clientListener, &params);
+    pthread_create (&params.hServerListener, 0, serverListener, &params);
+    pthread_join (params.hClientListener, NULL);
+    pthread_join (params.hServerListener, NULL);
 
     return 1;
 }

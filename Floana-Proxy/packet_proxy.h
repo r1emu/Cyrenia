@@ -15,6 +15,7 @@
 
 // Includes
 #include <windows.h>
+#include <pthread.h>
 #include "RawPacket/RawPacket.h"
 #include "Plugins/plugins.h"
 
@@ -26,6 +27,8 @@ typedef struct ProxyProxyParameters {
     size_t callbackCount;
     uint64_t packetId;
     HANDLE mutex;
+    pthread_t hClientListener;
+    pthread_t hServerListener;
 }   ProxyParameters;
 
 // Prototypes

@@ -217,8 +217,9 @@ int main (int argc, char **argv) {
     }
 
     // Init output path
+    CreateDirectoryA ("captures/", NULL);
     char sessionFolder[MAX_PATH];
-    sprintf (sessionFolder, "%Id_%s", metadata.sessionId, metadata.date);
+    sprintf (sessionFolder, "captures/%Id_%s", metadata.sessionId, metadata.date);
     CreateDirectoryA (sessionFolder, NULL);
 
     // Read raw packets
