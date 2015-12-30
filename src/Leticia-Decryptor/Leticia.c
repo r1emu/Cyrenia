@@ -14,8 +14,8 @@
 #include "dbg/dbg.h"
 #include "RawPacket/RawPacket.h"
 #include "PacketType/PacketType.h"
+#include "PacketProcessor/PacketProcessor.h"
 #include "crypto/crypto.h"
-#include "crypto/decrypt_engine.h"
 
 int writePacketToFiles (uint8_t *data, int dataSize, RawPacketType type, int64_t packetId, void *_sessionFolder) {
 
