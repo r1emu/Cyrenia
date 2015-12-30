@@ -17,42 +17,42 @@
 #include "crypto/crypto.h"
 #include "crypto/decrypt_engine.h"
 
-int writePacketToFiles (uint8_t *data, int dataSize, RawPacketType type, int64_t packetId, void *_captureFolder) {
+int writePacketToFiles (uint8_t *data, int dataSize, RawPacketType type, int64_t packetId, void *_sessionFolder) {
 
-    char *captureFolder = (char *) _captureFolder;
+    int status = 0;
+    FILE *capture = NULL;
+    FILE *decryptedFile = NULL;
+    char *sessionFolder = (char *) _sessionFolder;
 
     char capturePath[MAX_PATH];
-    sprintf (capturePath, "%s/capture.txt", captureFolder);
-
+    sprintf (capturePath, "%s/capture.txt", sessionFolder);
 
     PacketType_t packetType = 0;
     memcpy (&packetType, data, sizeof(PacketType_t));
     char *packetTypeStr = PacketType_to_string (packetType);
 
     // Open the output files
-    FILE *capture = fopen (capturePath, "ab+");
-    if (!capture) {
+    if (!(capture = fopen (capturePath, "ab+"))) {
         error ("Cannot open the capture file.");
-        return 0;
+        goto cleanup;
     }
 
     char decryptedPacketPath[PATH_MAX] = {0};
-    sprintf (decryptedPacketPath, "%s/%s/", captureFolder, packetTypeStr);
+    sprintf (decryptedPacketPath, "%s/%s", sessionFolder, packetTypeStr);
     CreateDirectoryA (decryptedPacketPath, NULL);
     sprintf (decryptedPacketPath, "%s/%s_%Id.bin", decryptedPacketPath, packetTypeStr, packetId);
 
-    FILE *decryptedFile = fopen (decryptedPacketPath, "w+");
-    if (!decryptedFile) {
-        error ("Cannot open the packet ID %d file.", packetId);
-        return 0;
+    if (!(decryptedFile = fopen (decryptedPacketPath, "wb+"))) {
+        error ("Cannot open the packet ID %d file. Reason : %s. (%s)", 
+            packetId, strerror(errno), decryptedPacketPath);
+        goto cleanup;
     }
 
-    info ("[%s][%Id] PacketType = %s", (type == RAW_PACKET_CLIENT) ? "CLIENT" : "SERVER", packetId, packetTypeStr);
+    // info ("[%s][%Id] PacketType = %s", (type == RAW_PACKET_CLIENT) ? "CLIENT" : "SERVER", packetId, packetTypeStr);
     if (strcmp(packetTypeStr, "UNKNOWN_PACKET") == 0) {
         info ("packetType = %d", packetType);
         buffer_print (data, dataSize, NULL);
     }
-    // buffer_print (data, dataSize, NULL);
 
     // Write the packets in subpacket file
     fwrite (data, dataSize, 1, decryptedFile);
@@ -62,11 +62,16 @@ int writePacketToFiles (uint8_t *data, int dataSize, RawPacketType type, int64_t
     buffer_print (data, dataSize, NULL);
     dbgSetOutput (stdout);
 
-    // Cleanup
-    fclose (capture);
-    fclose (decryptedFile);
+    status = 1;
+cleanup:
+    if (capture) {
+        fclose (capture);
+    }
+    if (decryptedFile) {
+        fclose (decryptedFile);
+    }
 
-    return 1;
+    return status;
 }
 
 int read_packets (char *rawCaptureFolder, char *sessionFolder) {
@@ -79,17 +84,15 @@ int read_packets (char *rawCaptureFolder, char *sessionFolder) {
     char rawServerCapture[PATH_MAX];
     sprintf (rawServerCapture, "%s/server.bin", rawCaptureFolder);
 
-    // Let's suppose the packet ID is in the recv file
+    // Let's suppose the packet ID is in the client file
     int64_t curPacketId = 0;
     int64_t lastPacketId = -1;
     char *rawCapture = rawClientCapture;
     size_t *offset = &recvOffset;
+    RawPacketType packetType = RAW_PACKET_CLIENT;
 
     while (1)
     {
-        RawPacket packet;
-        rawPacketInit (&packet);
-
         // Get the packet ID in the current file
         switch (rawPacketFileGetPacketId (rawCapture, *offset, &curPacketId)) {
             case 0: {
@@ -111,6 +114,7 @@ int read_packets (char *rawCaptureFolder, char *sessionFolder) {
         if (curPacketId != lastPacketId + 1) {
             rawCapture = (rawCapture == rawClientCapture) ? rawServerCapture : rawClientCapture;
             offset     = (offset     == &recvOffset)    ? &sendOffset    : &recvOffset;
+            packetType = (packetType == RAW_PACKET_CLIENT) ? RAW_PACKET_SERVER : RAW_PACKET_CLIENT;
         }
 
         // Check in the other file if the packet ID is correct
@@ -135,10 +139,13 @@ int read_packets (char *rawCaptureFolder, char *sessionFolder) {
             error ("Can't find packet ID %Id.", lastPacketId + 1);
             rawCapture = (rawCapture == rawClientCapture) ? rawServerCapture : rawClientCapture;
             offset     = (offset     == &recvOffset)    ? &sendOffset    : &recvOffset;
+            packetType = (packetType == RAW_PACKET_CLIENT) ? RAW_PACKET_SERVER : RAW_PACKET_CLIENT;
         }
 
         lastPacketId = curPacketId;
 
+        RawPacket packet;
+        rawPacketInit (&packet, packetType);
         switch (rawPacketReadFromFile (&packet, rawCapture, offset)) {
             case 0:
                 // Error

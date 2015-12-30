@@ -17,3 +17,4 @@
 
 // Types definition
 typedef int (*PluginCallback)(RawPacket *packet);
+typedef int (*PluginInit)(void);

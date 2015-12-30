@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <time.h>
+#include <tlhelp32.h>
 
 // Macro helper
 #define sizeof_array(a) (sizeof(a)/sizeof(a[0]))
@@ -70,7 +71,7 @@ int server_listen (int port, SOCKET *_server)
     size_t csin_size = sizeof(csin);
 
     if ((server = socket (AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
-        printf ("Invalid socket.");
+        error ("Invalid socket.");
         return -1;
     }
 
@@ -79,12 +80,12 @@ int server_listen (int port, SOCKET *_server)
     server_context.sin_port        = htons (port);
 
     if (bind (server, (SOCKADDR*) &server_context, csin_size) == SOCKET_ERROR) {
-        printf ("Cannot bind port %d. Reason : %d", port, (int) GetLastError ());
+        error ("Cannot bind port %d. Reason : %d", port, (int) GetLastError ());
         return -1;
     }
 
     if (listen (server, 1000) == SOCKET_ERROR) {
-        printf ("Cannot listen. Reason : %d", (int) GetLastError ());
+        error ("Cannot listen. Reason : %d", (int) GetLastError ());
         return -1;
     }
 
@@ -152,10 +153,10 @@ void *clientListener (void *_params)
     RawPacket packet;
     while (1) 
     {
-        rawPacketInit(&packet);
+        rawPacketInit(&packet, RAW_PACKET_CLIENT);
 
         // Receive packet from the game client
-        switch (rawPacketRecv (&packet, client, RAW_PACKET_CLIENT)) {
+        switch (rawPacketRecv (&packet, client)) {
             case 0:
                 error ("Cannot receive raw packet from the client.");
                 goto cleanup;
@@ -198,8 +199,6 @@ void *clientListener (void *_params)
             error ("Cannot send the raw packet to the server.");
             goto cleanup;
         }
-
-        printf (">");
     }
 
 cleanup:
@@ -228,10 +227,10 @@ void *serverListener (void *_params)
     RawPacket packet;
     while (1) 
     {
-        rawPacketInit(&packet);
+        rawPacketInit(&packet, RAW_PACKET_SERVER);
 
         // Receive packet from the server
-        switch (rawPacketRecv (&packet, server, RAW_PACKET_SERVER)) {
+        switch (rawPacketRecv (&packet, server)) {
             case 0:
                 error ("Cannot receive raw packet from the server.");
                 goto cleanup;
@@ -273,8 +272,6 @@ void *serverListener (void *_params)
             error ("Cannot send the raw packet to the server.");
             goto cleanup;
         }
-
-        printf ("<");
     }
 
 cleanup:
@@ -293,10 +290,19 @@ int plugin_load (char *pluginName, HMODULE *_plugin, PluginCallback *_callback)
         return 0;
     }
 
-    PluginCallback callback;
+    PluginInit init;
+    if (!(init = (typeof (init)) GetProcAddress (plugin, "pluginInit"))) {
+        error ("Cannot find 'pluginInit' function exported in '%s'.", pluginName);
+        return 0;
+    }
+    if (!init()) {
+        error ("Cannot initialize plugin '%s'", pluginName);
+        return 0;
+    }
 
+    PluginCallback callback;
     if (!(callback = (typeof (callback)) GetProcAddress (plugin, "pluginCallback"))) {
-        error ("Cannot find 'pluginCallback' function exported.");
+        error ("Cannot find 'pluginCallback' function exported in '%s'.", pluginName);
         return 0;
     }
 
@@ -312,7 +318,7 @@ int updateMetadata (RawPacketMetadata *self, char *sessionFolder, ProxyType prox
     char metaPath[PATH_MAX];
     sprintf (metaPath, "%s/metadata.bin", sessionFolder);
 
-    FILE *fMetadata = fopen (metaPath, "r");
+    FILE *fMetadata = fopen (metaPath, "rb");
     if (fMetadata) {
         // Already exists, read the existing metadata
         fread (self, sizeof(*self), 1, fMetadata);
@@ -337,7 +343,7 @@ int updateMetadata (RawPacketMetadata *self, char *sessionFolder, ProxyType prox
     }
 
     // Write back metadata
-    fMetadata = fopen (metaPath, "w+");
+    fMetadata = fopen (metaPath, "wb+");
     fwrite (self, sizeof(*self), 1, fMetadata);
     fclose (fMetadata);
 
@@ -411,7 +417,6 @@ int startProxy (
     };
     params.mutex = CreateMutex (NULL, FALSE, NULL);
 
-    special ("Proxy '%s' ID=%Id starts ! ", proxyTypeStr, sessionId);
     pthread_create (&params.hClientListener, 0, clientListener, &params);
     pthread_create (&params.hServerListener, 0, serverListener, &params);
     pthread_join (params.hClientListener, NULL);
@@ -445,7 +450,7 @@ int parse_command_line (int argc, char **argv, char **_serverIp, int *_serverPor
     if (!sessionIdFile) {
         // session ID file doesn't exist, create it
         warning ("Cannot open the session ID file. Create a new one.");
-        if (!(sessionIdFile = fopen ("session_id", "w+"))) {
+        if (!(sessionIdFile = fopen ("session_id", "wb+"))) {
             error ("Cannot open the session ID file at all.");
             goto cleanup;
         }
@@ -507,6 +512,23 @@ cleanup:
     return status;
 }
 
+int countProcessRunning (char *processName)
+{
+    PROCESSENTRY32 pe32 = {sizeof(PROCESSENTRY32)};
+    HANDLE hSnapshot = CreateToolhelp32Snapshot (TH32CS_SNAPPROCESS, 0);
+
+    int count = 0;
+    if (Process32First (hSnapshot, &pe32)) {
+        do {
+            if (stricmp (pe32.szExeFile, processName) == 0) {
+                count++;
+            }
+        } while (Process32Next (hSnapshot, &pe32));
+    }
+
+    CloseHandle(hSnapshot);
+    return count;
+} 
 
 int main (int argc, char **argv)
 {
@@ -530,13 +552,21 @@ int main (int argc, char **argv)
     }
 
     // Start the proxy
+    special ("========= Proxy '%s' ID=%d starts. ========= ", get_proxy_name (proxyType), sessionId);
     if (!(startProxy (serverIp, serverPort, proxyPort, callbacks, callbackCount, proxyType, sessionId))) {
         error ("Cannot start the proxy properly.");
         goto cleanup;
     }
 
 cleanup:
-    info ("Proxy '%s' ID=%d exits.", get_proxy_name (proxyType), sessionId);
-    fgetc (stdin);
+    special ("========= Proxy '%s' ID=%d exits. ========= ", get_proxy_name (proxyType), sessionId);
+    
+    // Don't exit until all other proxies haven't finished
+    if (strcmp (argv[5], "new") == 0) {
+        while (countProcessRunning(GET_FILENAME(argv[0])) != 1) {
+            Sleep(500);
+        }
+    }
+
     return 0;
 }

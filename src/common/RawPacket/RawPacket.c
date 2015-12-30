@@ -4,13 +4,14 @@
 #include <windows.h>
 #include <sys/stat.h>
 
-int rawPacketInit (RawPacket *self) {
-    self->dataSize = 0;
+int rawPacketInit (RawPacket *self, RawPacketType type) {
+    memset(self, 0, sizeof(*self));
     self->cursor = self->data;
+    self->type = type;
     return 1;
 }
 
-int rawPacketRecv (RawPacket *self, SOCKET socket, RawPacketType type) {
+int rawPacketRecv (RawPacket *self, SOCKET socket) {
 
     int bRecvd;
 
@@ -31,7 +32,6 @@ int rawPacketRecv (RawPacket *self, SOCKET socket, RawPacketType type) {
     }
 
     self->dataSize = bRecvd;
-    self->type = type;
     self->id = -1;
 
     return 1;
@@ -128,17 +128,19 @@ cleanup:
 
 int rawPacketFileGetPacketId (char *inputPath, size_t cursor, int64_t *_packetId) 
 {
+    int status = 0;
     FILE *input = NULL;
 
     switch (rawPacketFileOpen (inputPath, cursor, &input)) {
         case 0: {
             error ("Cannot get packet ID.");
-            return 0;
+            goto cleanup;
         } break;
 
         case -1: {
             // End of file detected
-            return -1;
+            status = -1;
+            goto cleanup;
         } break;
 
         case 1: {
@@ -149,11 +151,17 @@ int rawPacketFileGetPacketId (char *inputPath, size_t cursor, int64_t *_packetId
     int64_t packetId;
     if (fread (&packetId, sizeof(packetId), 1, input) != 1) {
         error ("Cannot read the packet ID from the log file.");
-        return 0;
+        goto cleanup;
     }
 
     *_packetId = packetId;
-    return 1;
+
+    status = 1;
+cleanup:
+    if (input) {
+        fclose (input);
+    }
+    return status;
 }
 
 int rawPacketReadFromFile (RawPacket *self, char *inputPath, size_t *cursor) {
@@ -198,11 +206,11 @@ cleanup:
     return status;
 }
 
-int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize) {
+int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize, RawPacketType type) {
 
     if (self->dataSize == 0) {
         // Initialize it
-        rawPacketInit (self);
+        rawPacketInit (self, type);
     }
     
     if (dataSize + self->dataSize > sizeof(self->data)) {

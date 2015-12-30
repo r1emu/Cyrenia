@@ -60,12 +60,12 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
 
             STARTUPINFO si = {0};
             PROCESS_INFORMATION pi = {0};
-            si.cb = sizeof(STARTUPINFO); 
+            si.cb = sizeof(STARTUPINFO);
             si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
             si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
             si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
             si.dwFlags |= STARTF_USESTDHANDLES;
-            if (!CreateProcess (executableName, commandLine, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
+            if (!CreateProcess (executableName, commandLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
                 error ("Cannot launch Zone Server executable : %s.", executableName);
                 char *errorReason;
                 FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(),
@@ -86,15 +86,20 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
     return 1;
 }
 
-int pluginCallback (RawPacket *packet) {
-
-    static int initialized = 0;
-    if (!initialized) {    
-        // Initialize crypto engine and packet engine
-        cryptoInit();
-        packetTypeInit();
-        initialized = 1;
+int pluginInit () {
+    
+    // Initialize crypto engine and packet engine
+    if (!(cryptoInit())) {
+        error ("Cannot initialize crypto engine.");
+        return 0;
     }
+    
+    packetTypeInit();
+
+    return 1;
+}
+
+int pluginCallback (RawPacket *packet) {
 
     // Decrypt the packet copy, and call hookConnectToZoneServer once decrypted
     if (!(foreachDecryptedPacket (packet, hookConnectToZoneServer, NULL))) {

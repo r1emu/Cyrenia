@@ -2,6 +2,7 @@
 #include "crypto/crypto.h"
 #include "PacketType/PacketType.h"
 #include "dbg/dbg.h"
+#include "zlib/zlib.h"
 
 RawPacket packetBuffer = {
     .dataSize = 0,
@@ -30,7 +31,7 @@ int getPacketBuffer (RawPacket *self) {
     memcpy (&self->data[0], packetBuffer.data, packetBuffer.dataSize);
     self->dataSize += packetBuffer.dataSize;
     self->cursor = self->data;
-    rawPacketInit (&packetBuffer);
+    rawPacketInit (&packetBuffer, RAW_PACKET_UNK);
 
     return 1;
 }
@@ -98,49 +99,63 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
                 int pktSize = PacketType_get_size (type);
 
                 if (pktSize == -1) {
-                    error ("An unknown packet has been encountered. (type = %d - 0x%x)", type, type);
-                    error ("It is possibly due to a client/server patch.");
-                    error ("Please update the packet decryptor engine.");
-                    buffer_print (copyPacket.cursor, 32, "First 32 bytes : ");
-                    exit (0);
-                }
-
-                if (pktSize == 0) {
-                    // Variable sized packet
-                    VariableSizePacketHeader header;
-                    memcpy (&header, copyPacket.cursor, sizeof(header));
-                    pktSize = header.packetSize;
-                }
-
-                if (pktSize != dataSize) {
-                    // warning ("Suspicious size ! %d expected, got %d.", pktSize, dataSize);
-                }
-
-                if (dataSize < pktSize) {
-                    // The current packet isn't large enough. 
-                    // Copy it to a buffer that will be used for the next packet.
-                    packetBuffer.type = copyPacket.type;
-                    if (!(rawPacketAdd (&packetBuffer, copyPacket.cursor, dataSize))) {
-                        error ("Cannot add to packet buffer.");
-                        goto cleanup;
+                    // Check for compressed packets
+                    if ((type & 0xF000) == 0x8000) {
+                        Zlib zlib;
+                        size_t size = (type & ~0x8000) + 3;
+                        zlibDecompress(&zlib, copyPacket.cursor + 2, size);
+                        RawPacket compressedRawPacket;
+                        rawPacketInit(&compressedRawPacket, RAW_PACKET_SERVER);
+                        rawPacketAdd(&compressedRawPacket, zlib.buffer, zlib.header.size, RAW_PACKET_SERVER);
+                        compressedRawPacket.id = copyPacket.id;
+                        foreachDecryptedPacket (&compressedRawPacket, callback, user_data);
+                        pktSize = size;
+                    } else {
+                        error ("An unknown packet has been encountered. (type = %d - 0x%x)", type, type);
+                        error ("It is possibly due to a client/server patch.");
+                        error ("Please update the packet decryptor engine.");
+                        buffer_print (copyPacket.data, copyPacket.dataSize, "RawPacketDump : ");
+                        error ("Skipping the raw packet ...");
+                        break;
                     }
-                }
+                } 
                 else {
-                    // Creates a backup of the decrypted data
-                    uint8_t decryptedCopy[pktSize];
-                    memcpy (decryptedCopy, copyPacket.cursor, sizeof(decryptedCopy));
-
-                    if (!(callback (copyPacket.cursor, pktSize, rawPacket->type, rawPacket->id, user_data))) {
-                        error ("Callback failed.");
-                        goto cleanup;
+                    if (pktSize == 0) {
+                        // Variable sized packet
+                        VariableSizePacketHeader header;
+                        memcpy (&header, copyPacket.cursor, sizeof(header));
+                        pktSize = header.packetSize;
                     }
 
-                    // Check if the callback modified the backup
-                    if (memcmp (copyPacket.cursor, decryptedCopy, pktSize) != 0) {
-                        // Buffer modified, change the original buffer
-                        size_t offset = copyPacket.cursor - copyPacket.data; 
-                        memcpy (rawPacket->data + offset, copyPacket.cursor, pktSize);
-                        info ("Server packet modified !");
+                    if (pktSize != dataSize) {
+                        // warning ("Suspicious size ! %d expected, got %d.", pktSize, dataSize);
+                    }
+
+                    if (dataSize < pktSize) {
+                        // The current packet isn't large enough. 
+                        // Copy it to a buffer that will be used for the next packet.
+                        if (!(rawPacketAdd (&packetBuffer, copyPacket.cursor, dataSize, copyPacket.type))) {
+                            error ("Cannot add to packet buffer.");
+                            goto cleanup;
+                        }
+                    }
+                    else {
+                        // Creates a backup of the decrypted data
+                        uint8_t decryptedCopy[pktSize];
+                        memcpy (decryptedCopy, copyPacket.cursor, sizeof(decryptedCopy));
+
+                        if (!(callback (copyPacket.cursor, pktSize, rawPacket->type, rawPacket->id, user_data))) {
+                            error ("Callback failed.");
+                            goto cleanup;
+                        }
+
+                        // Check if the callback modified the backup
+                        if (memcmp (copyPacket.cursor, decryptedCopy, pktSize) != 0) {
+                            // Buffer modified, change the original buffer
+                            size_t offset = copyPacket.cursor - copyPacket.data; 
+                            memcpy (rawPacket->data + offset, copyPacket.cursor, pktSize);
+                            info ("Server packet modified !");
+                        }
                     }
                 }
 

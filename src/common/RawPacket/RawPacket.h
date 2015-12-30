@@ -22,14 +22,15 @@
 
 typedef enum {
 	RAW_PACKET_CLIENT,
-	RAW_PACKET_SERVER
+	RAW_PACKET_SERVER,
+    RAW_PACKET_UNK
 }	RawPacketType;
 
 #pragma pack(push, 1)
 typedef struct RawPacket {
     int64_t id;
 	int dataSize;
-	uint8_t type;
+	RawPacketType type;
  	uint8_t data[8192*2];
     uint8_t *cursor; 
 } RawPacket;
@@ -49,12 +50,12 @@ typedef struct RawPacketMetadata {
 #pragma pack(pop)
 
 // RawPacket
-int rawPacketInit (RawPacket *self);
+int rawPacketInit (RawPacket *self, RawPacketType type);
 int rawPacketWriteToFile (RawPacket *self, char *outputPath);
 int rawPacketReadFromFile (RawPacket *self, char *inputPath, size_t *cursor);
-int rawPacketRecv (RawPacket *self, SOCKET socket, RawPacketType type);
+int rawPacketRecv (RawPacket *self, SOCKET socket);
 int rawPacketSend (RawPacket *self, SOCKET socket);
-int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize);
+int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize, RawPacketType type);
 void rawPacketCopy (RawPacket *dest, RawPacket *src);
 
 // RawPacketFile

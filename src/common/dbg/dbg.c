@@ -38,7 +38,7 @@ void dbgSetCustomOutput(char *filename) {
         return;
     }
 
-    FILE *out = fopen(filename, "a+");
+    FILE *out = fopen(filename, "ab+");
     if (!out) {
         error("Cannot open filename '%s'", filename);
         return;
