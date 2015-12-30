@@ -24,6 +24,12 @@
 #define sizeof_array(a) (sizeof(a)/sizeof(a[0]))
 
 // =========== Proxy types
+typedef enum {
+    PROXY_TYPE_BARRACK,
+    PROXY_TYPE_ZONE,
+    PROXY_TYPE_SOCIAL,
+}   ProxyType;
+
 typedef struct ProxyProxyParameters {
     char *captureFolder;
     SOCKET client;
@@ -34,13 +40,8 @@ typedef struct ProxyProxyParameters {
     HANDLE mutex;
     pthread_t hClientListener;
     pthread_t hServerListener;
+    ProxyType proxyType;
 }   ProxyParameters;
-
-typedef enum {
-    PROXY_TYPE_BARRACK,
-    PROXY_TYPE_ZONE,
-    PROXY_TYPE_SOCIAL,
-}   ProxyType;
 
 char *getProxyName (ProxyType type) {
 
@@ -159,11 +160,10 @@ void *clientListener (void *_params)
     SOCKET server = params->server;
     PluginCallback *callbacks = params->callbacks;
     size_t callbackCount = params->callbackCount;
+    ProxyType proxyType = params->proxyType;
 
     char outputPath[PATH_MAX];
     sprintf (outputPath, "%s/client.bin", captureFolder);
-
-    info ("Listener ready and running.");
 
     RawPacket packet;
     while (1) 
@@ -173,12 +173,12 @@ void *clientListener (void *_params)
         // Receive packet from the game client
         switch (rawPacketRecv (&packet, client)) {
             case 0:
-                error ("Cannot receive raw packet from the client.");
+                error ("Cannot receive raw packet from the client from the proxy '%s'.", getProxyName(proxyType));
                 goto cleanup;
             break;
 
             case -1:
-                info ("Client disconnected from the proxy.");
+                info ("Client disconnected from the proxy '%s'.", getProxyName(proxyType));
                 pthread_cancel (params->hServerListener);
                 goto cleanup;
             break;
@@ -218,7 +218,6 @@ void *clientListener (void *_params)
 
 cleanup:
     pthread_cancel (params->hServerListener);
-    info ("Client listener exits.");
     return NULL;
 }
 
@@ -233,11 +232,10 @@ void *serverListener (void *_params)
     SOCKET server = params->server;
     PluginCallback *callbacks = params->callbacks;
     size_t callbackCount = params->callbackCount;
+    ProxyType proxyType = params->proxyType;
 
     char outputPath[PATH_MAX];
     sprintf (outputPath, "%s/server.bin", captureFolder);
-
-    info ("Emitter ready and running.");
 
     RawPacket packet;
     while (1) 
@@ -247,12 +245,12 @@ void *serverListener (void *_params)
         // Receive packet from the server
         switch (rawPacketRecv (&packet, server)) {
             case 0:
-                error ("Cannot receive raw packet from the server.");
+                error ("Cannot receive raw packet from the server from the proxy '%s'.", getProxyName(proxyType));
                 goto cleanup;
             break;
 
             case -1:
-                info ("Server disconnected from the proxy.");
+                info ("Client disconnected from the proxy '%s'.", getProxyName(proxyType));
                 goto cleanup;
             break;
 
@@ -291,7 +289,6 @@ void *serverListener (void *_params)
 
 cleanup:
     pthread_cancel (params->hClientListener);
-    info ("Server listener exits.");
     return NULL;
 }
 
@@ -373,6 +370,7 @@ int startProxy (
 ) {
     // Bind the port of the proxy
     SOCKET proxy;
+    info ("Binding proxy '%s' on port '%d'...", getProxyName(proxyType), proxyPort);
     if (serverListen (proxyPort, &proxy) != 0) {
         error ("Cannot listen on port %d", proxyPort);
         return 0;
@@ -380,7 +378,7 @@ int startProxy (
 
     // Accept a new client
     SOCKET client;
-    info ("Server ready and listening on port '%d' ! Waiting for client...", proxyPort);
+    info ("Waiting for a client to connect to the proxy '%s'...", getProxyName(proxyType));
     if (serverAccept (proxy, &client) != 0) {
         error ("Cannot accept a new client.");
         return 0;
@@ -388,13 +386,11 @@ int startProxy (
 
     // Connect to the real server
     SOCKET server;
-    info ("New client detected ! Connecting to the real server ('%s:%d')...", serverIp, serverPort);
+    info ("Connecting to the real server '%s' (%s:%d)...", getProxyName(proxyType), serverIp, serverPort);
     if (!(clientConnect (serverIp, serverPort, &server))) {
         error ("Cannot connect to the real server '%s:%d'", serverIp, serverPort);
         return 0;
     }
-
-    info ("Connected to the game server ! Starting the proxy...");
 
     // Init session folder
     char sessionFolder[MAX_PATH];
@@ -408,17 +404,9 @@ int startProxy (
         return 0;
     }
 
-    // Convert proxy string to type
-    char proxyTypeStr[10];
-    switch (proxyType) {
-        case PROXY_TYPE_BARRACK: strcpy(proxyTypeStr, metadata.barrackName); break;
-        case PROXY_TYPE_ZONE:    strcpy(proxyTypeStr, metadata.zoneName);    break;
-        case PROXY_TYPE_SOCIAL:  strcpy(proxyTypeStr, metadata.socialName);  break;
-    }
-
     // Initialize zone capture folder
     char captureFolder[MAX_PATH];
-    sprintf (captureFolder, "%s/%s", sessionFolder, proxyTypeStr);
+    sprintf (captureFolder, "%s/%s", sessionFolder, getProxyName(proxyType));
     CreateDirectoryA (captureFolder, NULL);
 
     // Start worker threads
@@ -428,7 +416,8 @@ int startProxy (
         .server = server,
         .callbacks = callbacks,
         .callbackCount = callbackCount,
-        .packetId = 0
+        .packetId = 0,
+        .proxyType = proxyType
     };
     params.mutex = CreateMutex (NULL, FALSE, NULL);
 

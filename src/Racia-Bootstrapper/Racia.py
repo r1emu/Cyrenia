@@ -22,7 +22,7 @@ def signal_handler(s, frame):
 if __name__ == '__main__':
 
     if (len(sys.argv) != 2):
-        print "Usage : %s <TreeOfSavior folder>" % os.path.basename(sys.argv[0]);
+        print "Usage : %s <Client folder>" % os.path.basename(sys.argv[0]);
         sys.exit(0);
 
     # Read the server list URL in client.xml

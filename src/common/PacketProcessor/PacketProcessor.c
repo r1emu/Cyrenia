@@ -154,7 +154,6 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
                             // Buffer modified, change the original buffer
                             size_t offset = copyPacket.cursor - copyPacket.data; 
                             memcpy (rawPacket->data + offset, copyPacket.cursor, pktSize);
-                            info ("Server packet modified !");
                         }
                     }
                 }

@@ -22,7 +22,7 @@ int rawPacketRecv (RawPacket *self, SOCKET socket) {
     }
     
     else if (bRecvd == 0) {
-        warning ("Socket disconnected.");
+        // warning ("Socket disconnected.");
         return -1;
     }
 
