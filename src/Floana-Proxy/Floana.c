@@ -10,24 +10,39 @@
  * @license GNU GENERAL PUBLIC LICENSE - Version 2, June 1991
  *          See LICENSE file for further information
  */
-#include "Floana.h"
+#include "RawPacket/RawPacket.h"
+#include "Plugins/plugins.h"
 #include "dbg/dbg.h"
 #include <stdlib.h>
 #include <stdint.h>
 #include <time.h>
 #include <tlhelp32.h>
+#include <windows.h>
+#include <pthread.h>
 
 // Macro helper
 #define sizeof_array(a) (sizeof(a)/sizeof(a[0]))
 
-// =========== Proxy type
+// =========== Proxy types
+typedef struct ProxyProxyParameters {
+    char *captureFolder;
+    SOCKET client;
+    SOCKET server;
+    PluginCallback *callbacks;
+    size_t callbackCount;
+    uint64_t packetId;
+    HANDLE mutex;
+    pthread_t hClientListener;
+    pthread_t hServerListener;
+}   ProxyParameters;
+
 typedef enum {
     PROXY_TYPE_BARRACK,
     PROXY_TYPE_ZONE,
     PROXY_TYPE_SOCIAL,
 }   ProxyType;
 
-char *get_proxy_name (ProxyType type) {
+char *getProxyName (ProxyType type) {
 
     char *name [] = {
         [PROXY_TYPE_BARRACK] = "Barrack",
@@ -38,7 +53,7 @@ char *get_proxy_name (ProxyType type) {
     return name[type];
 }
 
-ProxyType get_proxy_type (char *name) {
+ProxyType getProxyType (char *name) {
 
     struct ProxyNameType {
         char *name;
@@ -60,7 +75,7 @@ ProxyType get_proxy_type (char *name) {
 }
 
 // =========== Proxy connection
-int server_listen (int port, SOCKET *_server)
+int serverListen (int port, SOCKET *_server)
 {
     WSADATA wsa;
     WSAStartup (MAKEWORD (2, 0), &wsa);
@@ -93,7 +108,7 @@ int server_listen (int port, SOCKET *_server)
     return 0;
 }
 
-int server_accept (SOCKET server, SOCKET *_client) 
+int serverAccept (SOCKET server, SOCKET *_client) 
 {
     SOCKADDR_IN csin;
     int csin_size = sizeof(csin);
@@ -107,7 +122,7 @@ int server_accept (SOCKET server, SOCKET *_client)
     return 0;
 }
 
-int client_connect (char *ip, int port, SOCKET *_server) 
+int clientConnect (char *ip, int port, SOCKET *_server) 
 {
     SOCKET server;
     SOCKADDR_IN server_context;
@@ -281,7 +296,7 @@ cleanup:
 }
 
 // =========== Plugins loader
-int plugin_load (char *pluginName, HMODULE *_plugin, PluginCallback *_callback)
+int pluginLoad (char *pluginName, HMODULE *_plugin, PluginCallback *_callback)
 {
 
     HMODULE plugin;
@@ -358,7 +373,7 @@ int startProxy (
 ) {
     // Bind the port of the proxy
     SOCKET proxy;
-    if (server_listen (proxyPort, &proxy) != 0) {
+    if (serverListen (proxyPort, &proxy) != 0) {
         error ("Cannot listen on port %d", proxyPort);
         return 0;
     }
@@ -366,7 +381,7 @@ int startProxy (
     // Accept a new client
     SOCKET client;
     info ("Server ready and listening on port '%d' ! Waiting for client...", proxyPort);
-    if (server_accept (proxy, &client) != 0) {
+    if (serverAccept (proxy, &client) != 0) {
         error ("Cannot accept a new client.");
         return 0;
     }
@@ -374,7 +389,7 @@ int startProxy (
     // Connect to the real server
     SOCKET server;
     info ("New client detected ! Connecting to the real server ('%s:%d')...", serverIp, serverPort);
-    if (!(client_connect (serverIp, serverPort, &server))) {
+    if (!(clientConnect (serverIp, serverPort, &server))) {
         error ("Cannot connect to the real server '%s:%d'", serverIp, serverPort);
         return 0;
     }
@@ -426,7 +441,7 @@ int startProxy (
 }
 
 // =========== Command line parser
-int parse_command_line (int argc, char **argv, char **_serverIp, int *_serverPort, int *_proxyPort, PluginCallback **_callbacks, size_t *_callbackCount, ProxyType *_proxyType, size_t *_sessionId) {
+int parserCommandLine (int argc, char **argv, char **_serverIp, int *_serverPort, int *_proxyPort, PluginCallback **_callbacks, size_t *_callbackCount, ProxyType *_proxyType, size_t *_sessionId) {
 
     int status = 0;
     FILE *sessionIdFile = NULL;
@@ -438,7 +453,7 @@ int parse_command_line (int argc, char **argv, char **_serverIp, int *_serverPor
 
     // Get proxy type
     char *proxyTypeStr = argv[4];
-    ProxyType proxyType = get_proxy_type(proxyTypeStr);
+    ProxyType proxyType = getProxyType(proxyTypeStr);
     if (proxyType == -1) {
         error ("Proxy type '%s' isn't valid.", proxyTypeStr);
         goto cleanup;
@@ -487,7 +502,7 @@ int parse_command_line (int argc, char **argv, char **_serverIp, int *_serverPor
         callbacks   = malloc (sizeof(*callbacks) * callbackCount);
 
         for (int i = 0; i < callbackCount; i++) {
-            if (!(plugin_load (pPluginName[i], &plugin, &callbacks[i]))) {
+            if (!(pluginLoad (pPluginName[i], &plugin, &callbacks[i]))) {
                 error ("Cannot load the plugin '%s'", argv[i]);
                 goto cleanup;
             }
@@ -546,20 +561,20 @@ int main (int argc, char **argv)
     uint64_t sessionId;
 
     // Parse the command line
-    if (!(parse_command_line (argc, argv, &serverIp, &serverPort, &proxyPort, &callbacks, &callbackCount, &proxyType, &sessionId))) {
+    if (!(parserCommandLine (argc, argv, &serverIp, &serverPort, &proxyPort, &callbacks, &callbackCount, &proxyType, &sessionId))) {
         error ("Cannot parse the command line correctly.");
         goto cleanup;
     }
 
     // Start the proxy
-    special ("========= Proxy '%s' ID=%d starts. ========= ", get_proxy_name (proxyType), sessionId);
+    special ("========= Proxy '%s' ID=%d starts. ========= ", getProxyName (proxyType), sessionId);
     if (!(startProxy (serverIp, serverPort, proxyPort, callbacks, callbackCount, proxyType, sessionId))) {
         error ("Cannot start the proxy properly.");
         goto cleanup;
     }
 
 cleanup:
-    special ("========= Proxy '%s' ID=%d exits. ========= ", get_proxy_name (proxyType), sessionId);
+    special ("========= Proxy '%s' ID=%d exits. ========= ", getProxyName (proxyType), sessionId);
     
     // Don't exit until all other proxies haven't finished
     if (strcmp (argv[5], "new") == 0) {
