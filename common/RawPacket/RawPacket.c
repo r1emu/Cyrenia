@@ -4,6 +4,12 @@
 #include <windows.h>
 #include <sys/stat.h>
 
+int rawPacketInit (RawPacket *self) {
+    self->dataSize = 0;
+    self->cursor = self->data;
+    return 1;
+}
+
 int rawPacketRecv (RawPacket *self, SOCKET socket, RawPacketType type) {
 
     int bRecvd;
@@ -190,4 +196,28 @@ cleanup:
     }
 
     return status;
+}
+
+int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize) {
+
+    if (self->dataSize == 0) {
+        // Initialize it
+        rawPacketInit (self);
+    }
+    
+    if (dataSize + self->dataSize > sizeof(self->data)) {
+        error ("Packet buffer isn't large enough !");
+        return 0;
+    }
+
+    memcpy (&self->data[self->dataSize], data, dataSize);
+    self->dataSize += dataSize;
+
+    return 1;
+}
+
+void rawPacketCopy (RawPacket *dest, RawPacket *src) {
+    memcpy (dest, src, sizeof(*dest));
+    size_t offset = src->cursor - src->data;
+    dest->cursor = dest->data + offset;
 }

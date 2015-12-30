@@ -25,7 +25,7 @@ int writePacketToFiles (uint8_t *data, int dataSize, RawPacketType type, int64_t
     sprintf (capturePath, "%s/capture.txt", captureFolder);
 
 
-    PacketType packetType;
+    PacketType_t packetType = 0;
     memcpy (&packetType, data, sizeof(PacketType_t));
     char *packetTypeStr = PacketType_to_string (packetType);
 
@@ -48,7 +48,11 @@ int writePacketToFiles (uint8_t *data, int dataSize, RawPacketType type, int64_t
     }
 
     info ("[%s][%Id] PacketType = %s", (type == RAW_PACKET_CLIENT) ? "CLIENT" : "SERVER", packetId, packetTypeStr);
-    buffer_print (data, dataSize, NULL);
+    if (strcmp(packetTypeStr, "UNKNOWN_PACKET") == 0) {
+        info ("packetType = %d", packetType);
+        buffer_print (data, dataSize, NULL);
+    }
+    // buffer_print (data, dataSize, NULL);
 
     // Write the packets in subpacket file
     fwrite (data, dataSize, 1, decryptedFile);
@@ -84,7 +88,7 @@ int read_packets (char *rawCaptureFolder, char *sessionFolder) {
     while (1)
     {
         RawPacket packet;
-        memset (&packet, 0, sizeof(packet));
+        rawPacketInit (&packet);
 
         // Get the packet ID in the current file
         switch (rawPacketFileGetPacketId (rawCapture, *offset, &curPacketId)) {
@@ -149,10 +153,7 @@ int read_packets (char *rawCaptureFolder, char *sessionFolder) {
 
             case 1: {
                 // Packet read success, decrypt it
-                uint8_t *data = packet.data;
-                int dataSize = packet.dataSize;
-
-                if (!(foreachDecryptedPacket (data, dataSize, packet.type, packet.id, writePacketToFiles, sessionFolder))) {
+                if (!(foreachDecryptedPacket (&packet, writePacketToFiles, sessionFolder))) {
                     error ("Cannot write packets to file.");
                     return 0;
                 }

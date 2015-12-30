@@ -16,14 +16,49 @@
 #include <stdint.h>
 #include <time.h>
 
+// Macro helper
+#define sizeof_array(a) (sizeof(a)/sizeof(a[0]))
+
+// =========== Proxy type
 typedef enum {
     PROXY_TYPE_BARRACK,
     PROXY_TYPE_ZONE,
     PROXY_TYPE_SOCIAL,
 }   ProxyType;
 
-#define sizeof_array(a) (sizeof(a)/sizeof(a[0]))
+char *get_proxy_name (ProxyType type) {
 
+    char *name [] = {
+        [PROXY_TYPE_BARRACK] = "Barrack",
+        [PROXY_TYPE_ZONE]    = "Zone",
+        [PROXY_TYPE_SOCIAL]  = "Social"
+    };
+
+    return name[type];
+}
+
+ProxyType get_proxy_type (char *name) {
+
+    struct ProxyNameType {
+        char *name;
+        ProxyType type;
+    } assoc [] = {
+        {"Barrack", PROXY_TYPE_BARRACK},
+        {"Zone",    PROXY_TYPE_ZONE},
+        {"Social",  PROXY_TYPE_SOCIAL},
+    };
+
+    for (int i = 0; i < sizeof_array (assoc); i++) {
+        struct ProxyNameType *p = &assoc[i];
+        if (stricmp (name, p->name) == 0) {
+            return p->type;
+        }
+    }
+
+    return -1;
+}
+
+// =========== Proxy connection
 int server_listen (int port, SOCKET *_server)
 {
     WSADATA wsa;
@@ -96,6 +131,7 @@ int client_connect (char *ip, int port, SOCKET *_server)
     return 1;
 }
 
+// =========== Listener threads
 void *clientListener (void *_params)
 {
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -116,6 +152,8 @@ void *clientListener (void *_params)
     RawPacket packet;
     while (1) 
     {
+        rawPacketInit(&packet);
+
         // Receive packet from the game client
         switch (rawPacketRecv (&packet, client, RAW_PACKET_CLIENT)) {
             case 0:
@@ -190,6 +228,8 @@ void *serverListener (void *_params)
     RawPacket packet;
     while (1) 
     {
+        rawPacketInit(&packet);
+
         // Receive packet from the server
         switch (rawPacketRecv (&packet, server, RAW_PACKET_SERVER)) {
             case 0:
@@ -243,6 +283,7 @@ cleanup:
     return NULL;
 }
 
+// =========== Plugins loader
 int plugin_load (char *pluginName, HMODULE *_plugin, PluginCallback *_callback)
 {
 
@@ -264,6 +305,7 @@ int plugin_load (char *pluginName, HMODULE *_plugin, PluginCallback *_callback)
     return 1;
 }
 
+// =========== Metadata reader
 int updateMetadata (RawPacketMetadata *self, char *sessionFolder, ProxyType proxyType, uint64_t sessionId) {
 
     // Verify if there is already a metadata file
@@ -302,6 +344,7 @@ int updateMetadata (RawPacketMetadata *self, char *sessionFolder, ProxyType prox
     return 1;
 }
 
+// =========== Proxy bootsrapper
 int startProxy (
     char *serverIp, int serverPort, int proxyPort, 
     PluginCallback *callbacks, size_t callbackCount, 
@@ -368,6 +411,7 @@ int startProxy (
     };
     params.mutex = CreateMutex (NULL, FALSE, NULL);
 
+    special ("Proxy '%s' ID=%Id starts ! ", proxyTypeStr, sessionId);
     pthread_create (&params.hClientListener, 0, clientListener, &params);
     pthread_create (&params.hServerListener, 0, serverListener, &params);
     pthread_join (params.hClientListener, NULL);
@@ -376,6 +420,7 @@ int startProxy (
     return 1;
 }
 
+// =========== Command line parser
 int parse_command_line (int argc, char **argv, char **_serverIp, int *_serverPort, int *_proxyPort, PluginCallback **_callbacks, size_t *_callbackCount, ProxyType *_proxyType, size_t *_sessionId) {
 
     int status = 0;
@@ -388,23 +433,7 @@ int parse_command_line (int argc, char **argv, char **_serverIp, int *_serverPor
 
     // Get proxy type
     char *proxyTypeStr = argv[4];
-    ProxyType proxyType = -1;
-    struct ProxyNameType {
-        char *name;
-        ProxyType type;
-    } assoc [] = {
-        {"barrack", PROXY_TYPE_BARRACK},
-        {"zone", PROXY_TYPE_ZONE},
-        {"social", PROXY_TYPE_SOCIAL},
-    };
-
-    for (int i = 0; i < sizeof_array (assoc); i++) {
-        struct ProxyNameType *p = &assoc[i];
-        if (strcmp (proxyTypeStr, p->name) == 0) {
-            proxyType = p->type;
-        }
-    }
-
+    ProxyType proxyType = get_proxy_type(proxyTypeStr);
     if (proxyType == -1) {
         error ("Proxy type '%s' isn't valid.", proxyTypeStr);
         goto cleanup;
@@ -478,6 +507,7 @@ cleanup:
     return status;
 }
 
+
 int main (int argc, char **argv)
 {
     if (argc < 5) {
@@ -506,6 +536,7 @@ int main (int argc, char **argv)
     }
 
 cleanup:
-    info ("Proxy exits.");
+    info ("Proxy '%s' ID=%d exits.", get_proxy_name (proxyType), sessionId);
+    fgetc (stdin);
     return 0;
 }

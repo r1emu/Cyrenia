@@ -18,4 +18,4 @@
 
 typedef int (*DecryptCallback) (uint8_t *data, int dataSize, RawPacketType type, int64_t packetId, void *user_data);
 
-int foreachDecryptedPacket (uint8_t *data, int dataSize, RawPacketType type, int64_t packetId, DecryptCallback callback, void *user_data);
+int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void *user_data);

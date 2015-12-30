@@ -20,7 +20,7 @@
 
 int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, int64_t packetId, void *user_data)
 {
-    PacketType_t pktType;
+    PacketType_t pktType = 0;
     memcpy (&pktType, data, sizeof(pktType));
 
     switch (pktType)
@@ -60,7 +60,12 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
 
             STARTUPINFO si = {0};
             PROCESS_INFORMATION pi = {0};
-            if (!CreateProcess (executableName, commandLine, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
+            si.cb = sizeof(STARTUPINFO); 
+            si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+            si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+            si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+            si.dwFlags |= STARTF_USESTDHANDLES;
+            if (!CreateProcess (executableName, commandLine, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
                 error ("Cannot launch Zone Server executable : %s.", executableName);
                 char *errorReason;
                 FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(),
@@ -91,11 +96,8 @@ int pluginCallback (RawPacket *packet) {
         initialized = 1;
     }
 
-    uint8_t *data = packet->data;
-    int dataSize = packet->dataSize;
-
     // Decrypt the packet copy, and call hookConnectToZoneServer once decrypted
-    if (!(foreachDecryptedPacket (data, dataSize, packet->type, packet->id, hookConnectToZoneServer, NULL))) {
+    if (!(foreachDecryptedPacket (packet, hookConnectToZoneServer, NULL))) {
         error ("Cannot decrypt packet.");
     }
 

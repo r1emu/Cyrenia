@@ -30,7 +30,8 @@ typedef struct RawPacket {
     int64_t id;
 	int dataSize;
 	uint8_t type;
- 	unsigned char data[8192*2];
+ 	uint8_t data[8192*2];
+    uint8_t *cursor; 
 } RawPacket;
 #pragma pack(pop)
 
@@ -48,10 +49,13 @@ typedef struct RawPacketMetadata {
 #pragma pack(pop)
 
 // RawPacket
+int rawPacketInit (RawPacket *self);
 int rawPacketWriteToFile (RawPacket *self, char *outputPath);
 int rawPacketReadFromFile (RawPacket *self, char *inputPath, size_t *cursor);
 int rawPacketRecv (RawPacket *self, SOCKET socket, RawPacketType type);
 int rawPacketSend (RawPacket *self, SOCKET socket);
+int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize);
+void rawPacketCopy (RawPacket *dest, RawPacket *src);
 
 // RawPacketFile
 int rawPacketFileOpen (char *inputPath, size_t cursor, FILE **_input);
