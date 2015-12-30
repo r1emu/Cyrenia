@@ -240,13 +240,10 @@ int main (int argc, char **argv) {
                 error ("Cannot read '%s' folder", name);
             } break;
 
-            case -1 : {
-                warning ("Everything has been read in '%s'.", name);
-            } break;
-
-            case 1 : {
+            case 1:
+            case -1:
                 info ("Everything has been read in '%s'.", name);
-            } break;
+            break;
         }
     }
     if (metadata.hasZone) {
@@ -257,13 +254,10 @@ int main (int argc, char **argv) {
                 error ("Cannot read '%s' folder", name);
             } break;
 
-            case -1 : {
-                warning ("Everything has been read in '%s'.", name);
-            } break;
-
-            case 1 : {
+            case 1:
+            case -1:
                 info ("Everything has been read in '%s'.", name);
-            } break;
+            break;
         }
     }
     if (metadata.hasSocial) {
@@ -274,13 +268,10 @@ int main (int argc, char **argv) {
                 error ("Cannot read '%s' folder", name);
             } break;
 
-            case -1 : {
-                warning ("Everything has been read in '%s'.", name);
-            } break;
-
-            case 1 : {
+            case 1:
+            case -1:
                 info ("Everything has been read in '%s'.", name);
-            } break;
+            break;
         }
     }
 
