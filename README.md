@@ -1,5 +1,5 @@
 # Cyrenia
-Cyrenia is a plugginable network packet logger.
+Cyrenia is a plugginable network proxy packet logger. It works without being injected in the target process at all.
 
 How to use :
  - Launch `Racia.py` ; Chose a target server which will be proxified.
