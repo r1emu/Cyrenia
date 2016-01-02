@@ -1,6 +1,6 @@
 
-NAME := Leticia
-TARGET := $(NAME).exe
+NAME := ZoneProxy
+TARGET := $(NAME).dll
 
 SRCEXT   := c
 SRCDIR   := ./
@@ -8,7 +8,7 @@ INCPATH  := ../
 OBJDIR   := .
 BINDIR   := ./
 BIN_DEBUGDIR := $(BINDIR)/debug
-COMMON_DIR := ../common
+COMMON_DIR := ../../common
 
 INCLUDES := -I. \
 			-I$(INCPATH) \
@@ -17,9 +17,11 @@ INCLUDES := -I. \
 # C++ compiler flag
 CFLAGS := -D_GNU_SOURCE -D__DBG_ACTIVATED__ -Wall -march=native $(INCLUDES) -c
 
+# Linker parameter flags
+
 # Linker library flags
 LIBDIRS  := -L$(API_DIR)/lib
-LDFLAGS  := -Wl,-rpath -Wl,$(API_DIR)/lib $(LIBDIRS)
+LDFLAGS  := -shared -Wl,-rpath -Wl,$(API_DIR)/lib $(LIBDIRS)
 LDLIBS   := -lz -lws2_32
 
 SRCS	:= $(shell find $(SRCDIR) -name '*.$(SRCEXT)')

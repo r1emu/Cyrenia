@@ -1,5 +1,7 @@
 *.exe
 *.dll
+*.d
+*.o
 src/Floana-Proxy/session_id
 src/Floana-Proxy/captures/*
 src/Leticia-Decryptor/captures/*
