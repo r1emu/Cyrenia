@@ -1,6 +1,5 @@
 
-NAME := ZoneProxy
-TARGET := $(NAME).dll
+TARGET := ZoneProxy.dll
 
 SRCEXT   := c
 SRCDIR   := ./
@@ -9,15 +8,14 @@ OBJDIR   := .
 BINDIR   := ./
 BIN_DEBUGDIR := $(BINDIR)/debug
 COMMON_DIR := ../../common
+COMMON_SRC := dbg RawPacket PacketType crypto PacketProcessor zlib
 
 INCLUDES := -I. \
 			-I$(INCPATH) \
 			-I$(COMMON_DIR)
 
-# C++ compiler flag
+# C compiler flag
 CFLAGS := -D_GNU_SOURCE -D__DBG_ACTIVATED__ -Wall -march=native $(INCLUDES) -c
-
-# Linker parameter flags
 
 # Linker library flags
 LIBDIRS  := -L$(API_DIR)/lib
@@ -25,10 +23,9 @@ LDFLAGS  := -shared -Wl,-rpath -Wl,$(API_DIR)/lib $(LIBDIRS)
 LDLIBS   := -lz -lws2_32
 
 SRCS	:= $(shell find $(SRCDIR) -name '*.$(SRCEXT)')
-COMMONS	:= $(shell find $(COMMON_DIR) -name '*.$(SRCEXT)')
+COMMONS	:= $(shell find $(addprefix $(COMMON_DIR)/,$(COMMON_SRC)) -name '*.$(SRCEXT)')
 SRCDIRS := $(shell find . -name '*.$(SRCEXT)' -exec dirname {} \; | uniq)
 OBJS	:= $(patsubst %.$(SRCEXT),$(OBJDIR)/%.o,$(SRCS) $(COMMONS))
-
 
 ###########################################################################
 # Rules to compile our files  - Do not change below this line!
@@ -37,13 +34,11 @@ CFLAGS += -std=gnu99
 
 .PHONY: all debug release clean distclean 
 
-
 all: $(BINDIR)/$(TARGET)
 
 # Build debug library
 debug: CFLAGS += -g
 debug: clean $(BIN_DEBUGDIR)/$(TARGET)
-
 
 # strip all symbols from release verison
 release: LDFLAGS += -s 
@@ -70,7 +65,7 @@ $(OBJDIR)/%.o: %.$(SRCEXT)
 
 clean:
 	@echo "Cleaning ..."
-	$(RM) -rf $(OBJS) bin/ $(subst .o,.d,$(OBJS))
+	$(RM) -rf $(TARGET) $(OBJS) $(subst .o,.d,$(OBJS))
 
 distclean: clean
 	$(RM) -r $(BINDIR)/$(TARGET)
