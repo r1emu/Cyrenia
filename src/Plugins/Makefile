@@ -10,6 +10,5 @@ hook_zone_connect:
 		../common/crypto/bf/bf_ecb.c ../common/crypto/bf/bf_enc.c ../common/crypto/bf/bf_skey.c \
 		-L../../lib/ \
 		-lws2_32 -lz
-
 clean:
 	rm -f *.exe

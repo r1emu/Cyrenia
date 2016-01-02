@@ -108,7 +108,10 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
                         rawPacketInit(&compressedRawPacket, RAW_PACKET_SERVER);
                         rawPacketAdd(&compressedRawPacket, zlib.buffer, zlib.header.size, RAW_PACKET_SERVER);
                         compressedRawPacket.id = copyPacket.id;
-                        foreachDecryptedPacket (&compressedRawPacket, callback, user_data);
+                        if (!(foreachDecryptedPacket (&compressedRawPacket, callback, user_data))) {
+                            error ("Cannot decrypt compressed packets.");
+                            goto cleanup;
+                        }
                         pktSize = size;
                     } else {
                         error ("An unknown packet has been encountered. (type = %d - 0x%x)", type, type);

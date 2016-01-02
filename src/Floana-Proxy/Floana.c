@@ -538,7 +538,7 @@ int main (int argc, char **argv)
 {
     if (argc < 5) {
         info ("Usage : %s <Server IP> <Server Port> <Local Port> <barrack|zone|social> <new|continue> [plugin.dll]", GET_FILENAME (argv[0]));
-        goto cleanup;
+        return 0;
     }
 
     char *serverIp;
