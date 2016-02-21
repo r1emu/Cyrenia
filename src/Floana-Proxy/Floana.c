@@ -416,8 +416,10 @@ int startProxy (
         error ("Cannot connect to the real server '%s:%d'", serverIp, serverPort);
         return 0;
     }
+    info ("Connected!");
 
     // Init session folder
+    CreateDirectoryA ("captures/", NULL);
     char sessionFolder[MAX_PATH];
     sprintf (sessionFolder, "captures/%Id", sessionId);
     CreateDirectoryA (sessionFolder, NULL);
