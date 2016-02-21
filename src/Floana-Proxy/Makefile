@@ -1,10 +1,9 @@
 
-NAME := Floana
-TARGET := $(NAME).exe
+TARGET := Floana
 
 SRCEXT   := c
-SRCDIR   := ./
-INCPATH  := ../
+SRCDIR   := .
+INCPATH  := ..
 OBJDIR   := .
 BINDIR   := ./
 BIN_DEBUGDIR := $(BINDIR)/debug
@@ -16,7 +15,7 @@ INCLUDES := -I. \
 			-I$(COMMON_DIR)
 
 # C compiler flag
-CFLAGS := -D_GNU_SOURCE -D__DBG_ACTIVATED__ -Wall -march=native $(INCLUDES) -c
+CFLAGS := -D_GNU_SOURCE -D__DBG_ACTIVATED__ -Wall $(INCLUDES) -c -Wno-strict-aliasing
 
 # Linker library flags
 LIBDIRS  := -L$(API_DIR)/lib
@@ -42,38 +41,43 @@ debug: CFLAGS += -g
 debug: clean $(BIN_DEBUGDIR)/$(TARGET)
 
 # strip all symbols from release verison
-release: LDFLAGS += -s 
-release: CFLAGS += -O2
+release: LDFLAGS += -s
+release: CFLAGS += -s -O2
 release: $(BINDIR)/$(TARGET)
 
 $(BINDIR)/$(TARGET): buildrepo $(OBJS)
 	@mkdir -p `dirname $@`
-	@echo "Linking $@..."
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
-	@echo "$@ sucessfully built."
+	@echo -e "\033[1;34mLinking '$@'\033[0m"
+	@$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
+	@echo -e "\033[1;32m ---> '$(TARGET)' sucessfully built !\033[0m"
+	make postclean
 
 $(BIN_DEBUGDIR)/$(TARGET): buildrepo $(OBJS)
 	@mkdir -p `dirname $@`
-	@echo "Linking $@..."
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
-	@echo "$@ sucessfully built."
+	@echo -e "\033[1;34mLinking '$@'\033[0m"
+	@$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
+	@echo -e "\033[1;32m ---> '$(TARGET)' sucessfully built !\033[0m"
+	make postclean
 
 $(OBJDIR)/%.o: %.$(SRCEXT)
-	@echo "Generating dependencies for $<..."
-	$(call make-depend,$<,$@,$(subst .o,.d,$@))
-	@echo "Compiling $<..."
-	$(CC) $(CFLAGS) $< -o $@
+	@$(call make-depend,$<,$@,$(subst .o,.dep,$@))
+	@echo -e "\033[1;34mCompiling '$<'"
+	@$(CC) $(CFLAGS) $< -o $@
+
+postclean:
+	@echo -e "\033[1;34mPost build cleaning ..."
+	@$(RM) -rf $(OBJS) $(subst .o,.dep,$(OBJS))
 
 clean:
-	@echo "Cleaning ..."
-	$(RM) -rf $(TARGET) $(OBJS) $(subst .o,.d,$(OBJS))
+	@echo -e "\033[1;34mCleaning ..."
+	@$(RM) -rf $(TARGET) $(OBJS) $(subst .o,.dep,$(OBJS))
 
 distclean: clean
-	$(RM) -r $(BINDIR)/$(TARGET)
-	$(RM) -r $(BIN_DEBUGDIR)/$(TARGET)
+	@$(RM) -r $(BINDIR)/$(TARGET)
+	@$(RM) -r $(BIN_DEBUGDIR)/$(TARGET)
 
 buildrepo:
-	$(call make-repo)
+	@$(call make-repo)
 
 define make-repo
    for dir in $(SRCDIRS); \
