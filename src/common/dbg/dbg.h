@@ -15,7 +15,9 @@
  */
 
 #pragma once
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 typedef enum {
     DBG_LEVEL_INFO,

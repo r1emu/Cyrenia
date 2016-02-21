@@ -1,5 +1,5 @@
 
-TARGET := GUI.dll
+TARGET := ../GUI.dll
 
 SRCEXT   := c
 SRCDIR   := ./

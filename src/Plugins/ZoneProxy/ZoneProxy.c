@@ -56,7 +56,7 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
             GetModuleFileName(NULL, executableName, sizeof(executableName));
 
             char commandLine[1000];
-            sprintf(commandLine, "%s %d.%d.%d.%d %d %d zone continue", executableName, serverIp[0], serverIp[1], serverIp[2], serverIp[3], packet->zoneServerPort, packet->zoneServerPort);
+            sprintf(commandLine, "%s %d.%d.%d.%d %d %d zone continue ../Plugins/GUI.dll", executableName, serverIp[0], serverIp[1], serverIp[2], serverIp[3], packet->zoneServerPort, packet->zoneServerPort);
 
             STARTUPINFO si = {0};
             PROCESS_INFORMATION pi = {0};
@@ -86,7 +86,7 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
     return 1;
 }
 
-int pluginInit () {
+int pluginInit (void **pluginData) {
     
     // Initialize crypto engine and packet engine
     if (!(cryptoInit())) {
@@ -96,15 +96,27 @@ int pluginInit () {
     
     packetTypeInit();
 
+    *pluginData = NULL;
+
     return 1;
 }
 
-int pluginCallback (RawPacket *packet) {
+int pluginCallback (RawPacket *packet, void *pluginData) {
 
     // Decrypt the packet copy, and call hookConnectToZoneServer once decrypted
     if (!(foreachDecryptedPacket (packet, hookConnectToZoneServer, NULL))) {
         error ("Cannot decrypt packet.");
     }
+
+    return 1;
+}
+
+int pluginExit (void *pluginData) {
+
+    return 1;
+}
+
+int pluginUnload (void *pluginData) {
 
     return 1;
 }

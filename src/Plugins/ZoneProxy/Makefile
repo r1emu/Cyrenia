@@ -1,5 +1,5 @@
 
-TARGET := ZoneProxy.dll
+TARGET := ../ZoneProxy.dll
 
 SRCEXT   := c
 SRCDIR   := ./

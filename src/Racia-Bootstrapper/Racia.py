@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+
+import sys
+print sys.path
+
 import sys, os;
 import requests;
 import shutil;

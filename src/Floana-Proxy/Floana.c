@@ -34,8 +34,7 @@ typedef struct ProxyProxyParameters {
     char *captureFolder;
     SOCKET client;
     SOCKET server;
-    PluginCallback *callbacks;
-    size_t callbackCount;
+    Plugins *plugins;
     uint64_t packetId;
     HANDLE mutex;
     pthread_t hClientListener;
@@ -158,8 +157,7 @@ void *clientListener (void *_params)
     char *captureFolder = params->captureFolder;
     SOCKET client = params->client;
     SOCKET server = params->server;
-    PluginCallback *callbacks = params->callbacks;
-    size_t callbackCount = params->callbackCount;
+    Plugins *plugins = params->plugins;
     ProxyType proxyType = params->proxyType;
 
     char outputPath[PATH_MAX];
@@ -200,9 +198,10 @@ void *clientListener (void *_params)
         }
 
         // If present, call the plugins callback
-        if (callbacks) {
-            for (int i = 0; i < callbackCount; i++) {
-                if (!(callbacks[i] (&packet))) {
+        if (plugins) {
+            for (int i = 0; i < plugins->count; i++) {
+                Plugin *plugin = &plugins->p[i];
+                if (!(plugin->call (&packet, plugin->param))) {
                     error ("Callback didn't succeed.");
                     goto cleanup;
                 }
@@ -230,8 +229,7 @@ void *serverListener (void *_params)
     char *captureFolder = params->captureFolder;
     SOCKET client = params->client;
     SOCKET server = params->server;
-    PluginCallback *callbacks = params->callbacks;
-    size_t callbackCount = params->callbackCount;
+    Plugins *plugins = params->plugins;
     ProxyType proxyType = params->proxyType;
 
     char outputPath[PATH_MAX];
@@ -271,9 +269,10 @@ void *serverListener (void *_params)
         }
 
         // If present, call the plugins callback
-        if (callbacks) {
-            for (int i = 0; i < callbackCount; i++) {
-                if (!(callbacks[i] (&packet))) {
+        if (plugins) {
+            for (int i = 0; i < plugins->count; i++) {
+                Plugin *plugin = &plugins->p[i];
+                if (!(plugin->call (&packet, plugin->param))) {
                     error ("Callback didn't succeed.");
                     goto cleanup;
                 }
@@ -293,32 +292,58 @@ cleanup:
 }
 
 // =========== Plugins loader
-int pluginLoad (char *pluginName, HMODULE *_plugin, PluginCallback *_callback)
+int pluginLoad (char *pluginName, Plugin *_plugin)
 {
+    Plugin plugin;
 
-    HMODULE plugin;
-    if (!(plugin = LoadLibrary (pluginName))) {
+    HMODULE hPlugin;
+    if (!(hPlugin = LoadLibrary (pluginName))) {
         error ("Cannot load plugin '%s'", pluginName);
         return 0;
     }
 
+    // Initialize plugin
     PluginInit init;
-    if (!(init = (typeof (init)) GetProcAddress (plugin, "pluginInit"))) {
+    void *param;
+    if (!(init = (typeof (init)) GetProcAddress (hPlugin, "pluginInit"))) {
         error ("Cannot find 'pluginInit' function exported in '%s'.", pluginName);
         return 0;
     }
-    if (!init()) {
+    if (!init (&param)) {
         error ("Cannot initialize plugin '%s'", pluginName);
         return 0;
     }
 
     PluginCallback callback;
-    if (!(callback = (typeof (callback)) GetProcAddress (plugin, "pluginCallback"))) {
+    if (!(callback = (typeof (callback)) GetProcAddress (hPlugin, "pluginCallback"))) {
         error ("Cannot find 'pluginCallback' function exported in '%s'.", pluginName);
         return 0;
     }
 
-    *_callback = callback;
+    PluginUnload onUnload;
+    if (!(onUnload = (typeof (onUnload)) GetProcAddress (hPlugin, "pluginUnload"))) {
+        warning ("Cannot find 'pluginUnload' function exported in '%s'. Default callback used instead.", pluginName);
+        int defaultUnload () {
+            return 1;
+        }
+        onUnload = defaultUnload;
+    }
+
+    PluginExit onExit;
+    if (!(onExit = (typeof (onExit)) GetProcAddress (hPlugin, "pluginExit"))) {
+        warning ("Cannot find 'pluginExit' function exported in '%s'. Default callback used instead.", pluginName);
+        int defaultExit () {
+            return 1;
+        }
+        onExit = defaultExit;
+    }
+
+    plugin.call = callback;
+    plugin.unload = onUnload;
+    plugin.exit = onExit;
+    plugin.param = param;
+    plugin.name = GET_FILENAME(pluginName);
+
     *_plugin = plugin;
     return 1;
 }
@@ -365,7 +390,7 @@ int updateMetadata (RawPacketMetadata *self, char *sessionFolder, ProxyType prox
 // =========== Proxy bootsrapper
 int startProxy (
     char *serverIp, int serverPort, int proxyPort, 
-    PluginCallback *callbacks, size_t callbackCount, 
+    Plugins *plugins, 
     ProxyType proxyType, uint64_t sessionId
 ) {
     // Bind the port of the proxy
@@ -414,8 +439,7 @@ int startProxy (
         .captureFolder = captureFolder,
         .client = client,
         .server = server,
-        .callbacks = callbacks,
-        .callbackCount = callbackCount,
+        .plugins = plugins,
         .packetId = 0,
         .proxyType = proxyType
     };
@@ -430,8 +454,11 @@ int startProxy (
 }
 
 // =========== Command line parser
-int parserCommandLine (int argc, char **argv, char **_serverIp, int *_serverPort, int *_proxyPort, PluginCallback **_callbacks, size_t *_callbackCount, ProxyType *_proxyType, size_t *_sessionId) {
-
+int parserCommandLine (int argc, char **argv, 
+    char **_serverIp, int *_serverPort, int *_proxyPort, 
+    Plugins *_plugins, 
+    ProxyType *_proxyType, size_t *_sessionId
+) {
     int status = 0;
     FILE *sessionIdFile = NULL;
 
@@ -481,30 +508,30 @@ int parserCommandLine (int argc, char **argv, char **_serverIp, int *_serverPort
     sessionIdFile = NULL;
 
     // Load plugins
-    HMODULE plugin;
-    PluginCallback *callbacks = NULL;
+    Plugins plugins;
     int pluginsPos = 6;
-    size_t callbackCount = argc - pluginsPos;
+    plugins.count = argc - pluginsPos;
 
-    if (argc >= pluginsPos + 1) {
+    if (argc >= pluginsPos + 1) 
+    {
         char **pPluginName = &argv[pluginsPos]; 
-        callbacks   = malloc (sizeof(*callbacks) * callbackCount);
+        plugins.p = malloc (sizeof(Plugin) * plugins.count);
 
-        for (int i = 0; i < callbackCount; i++) {
-            if (!(pluginLoad (pPluginName[i], &plugin, &callbacks[i]))) {
-                error ("Cannot load the plugin '%s'", argv[i]);
+        for (int i = 0; i < plugins.count; i++) {
+            Plugin *plugin = &plugins.p[i];
+            if (!(pluginLoad (pPluginName[i], plugin))) {
+                error ("Cannot load the plugin '%s'", pPluginName[i]);
                 goto cleanup;
             }
 
-            info ("Plugin '%s' loaded !", GET_FILENAME (pPluginName[i]));
+            info ("Plugin '%s' loaded !", plugin->name);
         }
     }
 
     *_serverIp = serverIp;
     *_serverPort = serverPort;
     *_proxyPort = proxyPort;
-    *_callbacks = callbacks;
-    *_callbackCount = callbackCount;
+    *_plugins = plugins;
     *_proxyType = proxyType;
     *_sessionId = sessionId;
     status = 1;
@@ -544,31 +571,44 @@ int main (int argc, char **argv)
     char *serverIp;
     int serverPort;
     int proxyPort;
-    PluginCallback *callbacks;
-    size_t callbackCount;
+    Plugins plugins;
     ProxyType proxyType;
     uint64_t sessionId;
 
     // Parse the command line
-    if (!(parserCommandLine (argc, argv, &serverIp, &serverPort, &proxyPort, &callbacks, &callbackCount, &proxyType, &sessionId))) {
+    if (!(parserCommandLine (argc, argv, &serverIp, &serverPort, &proxyPort, &plugins, &proxyType, &sessionId))) {
         error ("Cannot parse the command line correctly.");
         goto cleanup;
     }
 
     // Start the proxy
     special ("========= Proxy '%s' ID=%d starts. ========= ", getProxyName (proxyType), sessionId);
-    if (!(startProxy (serverIp, serverPort, proxyPort, callbacks, callbackCount, proxyType, sessionId))) {
+    if (!(startProxy (serverIp, serverPort, proxyPort, &plugins, proxyType, sessionId))) {
         error ("Cannot start the proxy properly.");
         goto cleanup;
     }
 
 cleanup:
     special ("========= Proxy '%s' ID=%d exits. ========= ", getProxyName (proxyType), sessionId);
-    
+
+    for (int i = 0; i < plugins.count; i++) {
+        Plugin *plugin = &plugins.p[i];
+        if (!(plugin->unload(plugin->param))) {
+            error ("Cannot unload plugin '%s' correctly.");
+        }
+    }
+
     // Don't exit until all other proxies haven't finished
     if (strcmp (argv[5], "new") == 0) {
         while (countProcessRunning(GET_FILENAME(argv[0])) != 1) {
             Sleep(500);
+        }
+    }
+
+    for (int i = 0; i < plugins.count; i++) {
+        Plugin *plugin = &plugins.p[i];
+        if (!(plugin->exit(plugin->param))) {
+            error ("Cannot exit plugin '%s' correctly.");
         }
     }
 

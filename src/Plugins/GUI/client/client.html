@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="./jquery.js"></script>
+</head>
+
+<link rel="stylesheet" type="text/css" href="./table.css"/>
+<link rel="stylesheet" type="text/css" href="./gui.css"/>
+
+<body>
+    <div id="log"></div>
+
+    <div class="wrapper">
+        <table id="packets">
+            <tr>
+                <td>ID</td>
+                <td>Server</td>
+                <td>Size</td>
+                <td>Type</td>
+                <td>Data</td>
+            </tr>
+        </table>
+    </div>
+
+    <script type="text/javascript">
+        $(document).ready(function() {
+            var ws = null;
+            var packets = document.getElementById('packets');
+
+            (function reconnect () {
+                if ("WebSocket" in window) {
+                    ws = new WebSocket("ws://localhost:8088/");
+                    ws.onopen = function() {
+                        $('#log').append('<li>websocket opened</div>');
+                    };
+                    ws.onmessage = function(event) {
+
+                        isBottom = false;
+                        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight) {
+                            isBottom = true;
+                        }
+
+                        // packet = JSON && JSON.parse(event.data) || $.parseJSON(event.data);
+                        packets.insertAdjacentHTML('beforeend', 
+                              '<tr>'
+                            +   '<td>'+ packet.id +'</td>'
+                            +   '<td>'+ packet.server +'</td>'
+                            +   '<td>'+ packet.size +'</td>'
+                            +   '<td>'+ packet.type +'</td>'
+                            +   '<td>' + packet.data + '</td>'
+                            + '</tr>'
+                        );
+
+                        if (isBottom) {
+                            // Keep being at the bottom of the page
+                            window.scrollTo(0, document.body.scrollHeight);
+                        }
+                    };
+                    ws.onclose = function() {
+                        $('#log').append('<li>websocket closed</li>');
+                        console.log("reco");
+                        reconnect();
+                    };
+                } else {
+                    $('#log').append('<li>WebSocket NOT supported in this browser</li>');
+                }
+            })();
+        });
+    </script>
+</body>
+
+</html>
