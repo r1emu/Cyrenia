@@ -46,7 +46,15 @@
                             isBottom = true;
                         }
 
-                        packet = JSON && JSON.parse(event.data) || $.parseJSON(event.data);
+                        try {
+                            packet = JSON && JSON.parse(event.data) || $.parseJSON(event.data);
+                        }
+                        catch (err) {
+                            console.log(err.message);
+                            console.log(event.data);
+                            return;
+                        }
+                        
                         packets.insertAdjacentHTML('beforeend', 
                               '<tr>'
                             +   '<td>' + packet.id        + '</td>'

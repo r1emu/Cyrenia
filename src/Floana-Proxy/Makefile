@@ -52,13 +52,6 @@ $(BINDIR)/$(TARGET): buildrepo $(OBJS)
 	@echo -e "\033[1;32m ---> '$(TARGET)' sucessfully built !\033[0m"
 	make postclean
 
-$(BIN_DEBUGDIR)/$(TARGET): buildrepo $(OBJS)
-	@mkdir -p `dirname $@`
-	@echo -e "\033[1;34mLinking '$@'\033[0m"
-	@$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
-	@echo -e "\033[1;32m ---> '$(TARGET)' sucessfully built !\033[0m"
-	make postclean
-
 $(OBJDIR)/%.o: %.$(SRCEXT)
 	@$(call make-depend,$<,$@,$(subst .o,.dep,$@))
 	@echo -e "\033[1;34mCompiling '$<'"

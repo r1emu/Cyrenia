@@ -51,13 +51,18 @@ typedef struct RawPacketMetadata {
 #pragma pack(pop)
 
 // RawPacket
+RawPacket *rawPacketNew (RawPacketType type);
 int rawPacketInit (RawPacket *self, RawPacketType type);
 int rawPacketWriteToFile (RawPacket *self, char *outputPath);
 int rawPacketReadFromFile (RawPacket *self, char *inputPath, size_t *cursor);
 int rawPacketRecv (RawPacket *self, SOCKET socket);
 int rawPacketSend (RawPacket *self, SOCKET socket);
-int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize, RawPacketType type);
+int rawPacketAppend (RawPacket *self, uint8_t *data, int dataSize);
 void rawPacketCopy (RawPacket *dest, RawPacket *src);
+void rawPacketFree (RawPacket *self);
+void rawPacketDestroy (RawPacket **_self);
+void rawPacketReset (RawPacket *self);
+void rawPacketPrint (RawPacket *self);
 
 // RawPacketFile
 int rawPacketFileOpen (char *inputPath, size_t cursor, FILE **_input);

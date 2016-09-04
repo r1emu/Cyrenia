@@ -57,6 +57,20 @@ int sendTextToClient (SOCKET clientSocket, const uint8_t *text, size_t textSize)
     return sendBytesToClient (clientSocket, buffer, frameSize);
 }
 
+char filterCharacter (char c) {
+    if (
+        isprint(c) 
+     && c != '\r' 
+     && c != '"' 
+     && c != '\\' 
+     && c != '\n' 
+     && c != '\t') {
+        return c;
+    } else {
+        return '.';
+    }
+}
+
 int sendPacketToGui (uint8_t *packet, int packetSize, RawPacketType type, int64_t packetId, void *userdata)
 {
     GUIApp *app = (GUIApp *) userdata;
@@ -67,21 +81,22 @@ int sendPacketToGui (uint8_t *packet, int packetSize, RawPacketType type, int64_
     char *packetTypeStr = PacketType_to_string (packetType);
 
     char buffer[BUF_LEN] = {0};
-    char packetData[BUF_LEN/2] = {0};
-    char ascii[BUF_LEN/2] = {0};
+    char packetData[BUF_LEN/4] = {0};
+    char ascii[BUF_LEN/4] = {0};
     char *packetDataPtr = packetData;
     char *asciiPtr = ascii;
+
     for (int i = 0; i < packetSize; i++) {
         if (
             (asciiPtr > ascii + sizeof(ascii) + 0x100) 
         ||  (packetDataPtr > packetData + sizeof(packetData) + 0x100) 
         ) {
-            warning ("Output truncated for packet '%s'", packetTypeStr);
+            warning ("Output truncated for packet '%s' (packet size = %d)", packetTypeStr, packetSize);
             break;
         }
 
         packetDataPtr += sprintf (packetDataPtr, "%.2x ", packet[i]);
-        asciiPtr      += sprintf (asciiPtr, "%c", (isprint(packet[i]) && packet[i] != '\r' && packet[i] != '\n' && packet[i] != '\t') ? packet[i] : '.');
+        asciiPtr      += sprintf (asciiPtr, "%c", filterCharacter(packet[i]));
         if ((i+1) % 16 == 0) {
             packetDataPtr += sprintf (packetDataPtr, "<br/>");
             asciiPtr      += sprintf (asciiPtr, "<br/>");

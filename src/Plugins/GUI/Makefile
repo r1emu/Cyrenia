@@ -8,7 +8,7 @@ OBJDIR   := .
 BINDIR   := ./
 BIN_DEBUGDIR := $(BINDIR)
 COMMON_DIR := ../../common
-COMMON_SRC := dbg RawPacket PacketType crypto PacketProcessor zlib cwebsocket
+COMMON_SRC := dbg RawPacket PacketType crypto PacketProcessor zlib cwebsocket BbQueue
 
 INCLUDES := -I. \
 			-I$(INCPATH) \

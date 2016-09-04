@@ -4,7 +4,24 @@
 #include <windows.h>
 #include <sys/stat.h>
 
-#define RAW_PACKET_DEFAULT_SIZE 8192*100
+#define RAW_PACKET_DEFAULT_SIZE 8192*126
+
+RawPacket *rawPacketNew (RawPacketType type) {
+    RawPacket *self = NULL;
+
+    if (!(self = calloc (sizeof(*self), 1))) {
+        error ("Cannot allocate a new RawPacket.");
+        return NULL;
+    }
+
+    if (!(rawPacketInit(self, type))) {
+        rawPacketDestroy(&self);
+        error("RawPacket failed to initialize.");
+        return NULL;
+    }
+
+    return self;
+}
 
 int rawPacketInit (RawPacket *self, RawPacketType type) {
     memset(self, 0, sizeof(*self));
@@ -17,8 +34,20 @@ int rawPacketInit (RawPacket *self, RawPacketType type) {
     self->cursor = self->buffer;
     self->type = type;
     self->bufferSize = RAW_PACKET_DEFAULT_SIZE;
+    self->dataSize = 0;
 
     return 1;
+}
+
+void rawPacketReset (RawPacket *self) {
+    if (self->buffer) {
+        memset (self->buffer, 0, self->bufferSize);
+    }
+
+    self->dataSize = 0;
+    self->cursor = self->buffer;
+    self->type = RAW_PACKET_UNK;
+    self->id = -1;
 }
 
 int rawPacketRecv (RawPacket *self, SOCKET socket) {
@@ -236,13 +265,8 @@ cleanup:
     return status;
 }
 
-int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize, RawPacketType type) {
+int rawPacketAppend (RawPacket *self, uint8_t *data, int dataSize) {
 
-    if (self->dataSize == 0) {
-        // Initialize it
-        rawPacketInit (self, type);
-    }
-    
     if (dataSize + self->dataSize > self->bufferSize) {
         error ("Packet buffer isn't large enough !");
         return 0;
@@ -257,7 +281,27 @@ int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize, RawPacketType ty
 void rawPacketCopy (RawPacket *dest, RawPacket *src) {
     memcpy (dest, src, sizeof(*dest));
     size_t offset = src->cursor - src->buffer;
-    dest->buffer = malloc (src->bufferSize);
+
+    if (!(dest->buffer = malloc (src->bufferSize))) {
+        error ("Cannot create copy buffer");
+        return;
+    }
+
     memcpy(dest->buffer, src->buffer, src->bufferSize);
     dest->cursor = dest->buffer + offset;
+}
+
+void rawPacketFree (RawPacket *self) {
+    free (self->buffer);
+}
+
+void rawPacketPrint (RawPacket *self) {
+    buffer_print(self->buffer, self->dataSize, "RAWPACKET : ");
+}
+
+void rawPacketDestroy (RawPacket **_self) {
+    RawPacket *self = *_self;
+    rawPacketFree(self);
+    free(self);
+    *_self = NULL;
 }

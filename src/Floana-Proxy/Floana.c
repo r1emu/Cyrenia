@@ -213,6 +213,8 @@ void *clientListener (void *_params)
             error ("Cannot send the raw packet to the server.");
             goto cleanup;
         }
+
+        rawPacketFree(&packet);
     }
 
 cleanup:
@@ -284,6 +286,8 @@ void *serverListener (void *_params)
             error ("Cannot send the raw packet to the server.");
             goto cleanup;
         }
+
+        rawPacketFree(&packet);
     }
 
 cleanup:

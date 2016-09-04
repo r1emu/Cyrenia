@@ -3,51 +3,47 @@
 #include "PacketType/PacketType.h"
 #include "dbg/dbg.h"
 #include "zlib/zlib.h"
+#include "BbQueue/BbQueue.h"
 #include <stdbool.h>
 
-RawPacket packetBuffer = {
-    .dataSize = 0
-};
+BbQueue packetQueue = bb_queue_local_decl();
 
-bool isInit = 0;
-
-void packetProcessorInit () {
-    rawPacketInit (&packetBuffer, RAW_PACKET_UNK);
-}
-
-int getPacketBuffer (RawPacket *self) {
+int getPacketQueue (RawPacket *self) {
     
-    if (self->type != packetBuffer.type) {
-        // Must match the same type
-        return 1;
-    }
-
-    if (packetBuffer.dataSize == 0) {
+    if (bb_queue_get_length(&packetQueue) == 0) {
         // Nothing to do
         return 1;
     }
 
-    if (self->dataSize + packetBuffer.dataSize >self->bufferSize) {
+    RawPacket *lastPkt = bb_queue_get_first (&packetQueue);
+/*
+    if (self->type != lastPkt->type) {
+        // Must match the same type
+        warning ("PacketBuffer must match type");
+        return 1;
+    }
+*/
+    if (self->dataSize + lastPkt->dataSize >self->bufferSize) {
         error ("Destination packet buffer isn't large enough !");
         return 0;
     }
 
     // Put the data at the start at the end of the packet buffer
-    memcpy (&self->buffer[packetBuffer.dataSize], &self->buffer[0], self->dataSize);
-    memcpy (&self->buffer[0], packetBuffer.buffer, packetBuffer.dataSize);
-    self->dataSize += packetBuffer.dataSize;
+    memcpy (&self->buffer[lastPkt->dataSize], &self->buffer[0], self->dataSize);
+    memcpy (&self->buffer[0], lastPkt->buffer, lastPkt->dataSize);
+    self->dataSize += lastPkt->dataSize;
     self->cursor = self->buffer;
-    rawPacketInit (&packetBuffer, RAW_PACKET_UNK);
+    rawPacketDestroy (&lastPkt);
 
     return 1;
 }
 
-int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void *user_data) {
+int addPacketQueue (RawPacket *self) {
+    bb_queue_add (&packetQueue, self);
+    return 1;
+}
 
-    if (!isInit) {
-        packetProcessorInit();
-        isInit = true;
-    }
+int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void *user_data) {
 
     int status = 0;
 
@@ -55,7 +51,7 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
     RawPacket copyPacket;
     rawPacketCopy(&copyPacket, rawPacket);
 
-    getPacketBuffer(&copyPacket);
+    getPacketQueue(&copyPacket);
     int dataSize = copyPacket.dataSize;
 
     switch (copyPacket.type)
@@ -117,18 +113,19 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
                         zlibDecompress(&zlib, copyPacket.cursor + 2, size);
                         RawPacket compressedRawPacket;
                         rawPacketInit(&compressedRawPacket, RAW_PACKET_SERVER);
-                        rawPacketAdd(&compressedRawPacket, zlib.buffer, zlib.header.size, RAW_PACKET_SERVER);
+                        rawPacketAppend(&compressedRawPacket, zlib.buffer, zlib.header.size);
                         compressedRawPacket.id = copyPacket.id;
                         if (!(foreachDecryptedPacket (&compressedRawPacket, callback, user_data))) {
                             error ("Cannot decrypt compressed packets.");
                             goto cleanup;
                         }
+                        rawPacketFree(&compressedRawPacket);
                         pktSize = size;
                     } else {
-                        error ("An unknown packet has been encountered. (type = %d - 0x%x)", type, type);
+                        error ("An unknown packet has been encountered. (type = %d - 0x%x / size = %d)", type, type, copyPacket.dataSize);
                         error ("It is possibly due to a client/server patch.");
                         error ("Please update the packet decryptor engine.");
-                        buffer_print (copyPacket.buffer, copyPacket.dataSize, "RawPacketDump : ");
+                        // buffer_print (copyPacket.buffer, copyPacket.dataSize, "RawPacketDump : ");
                         error ("Skipping the raw packet ...");
                         break;
                     }
@@ -148,10 +145,21 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
                     if (dataSize < pktSize) {
                         // The current packet isn't large enough. 
                         // Copy it to a buffer that will be used for the next packet.
-                        if (!(rawPacketAdd (&packetBuffer, copyPacket.cursor, dataSize, copyPacket.type))) {
+                        warning ("Current packet isn't large enough (dataSize = %d, pktSize = %d) - Buffering", dataSize, pktSize);
+
+                        RawPacket *packetBuffer = NULL;
+
+                        if (!(packetBuffer = rawPacketNew (RAW_PACKET_SERVER))) {
+                            error ("Cannot create a new packet buffer");
+                            goto cleanup;
+                        }
+
+                        if (!(rawPacketAppend (packetBuffer, copyPacket.cursor, dataSize))) {
                             error ("Cannot add to packet buffer.");
                             goto cleanup;
                         }
+
+                        addPacketQueue (packetBuffer);
                     }
                     else {
                         // Creates a backup of the decrypted data
@@ -183,6 +191,8 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
             goto cleanup;
         break;
     }
+
+    rawPacketFree(&copyPacket);
 
     status = 1;
 cleanup:

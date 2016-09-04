@@ -145,7 +145,6 @@ int read_packets (char *rawCaptureFolder, char *sessionFolder) {
         lastPacketId = curPacketId;
 
         RawPacket packet;
-        rawPacketInit (&packet, packetType);
         switch (rawPacketReadFromFile (&packet, rawCapture, offset)) {
             case 0:
                 // Error
@@ -166,6 +165,7 @@ int read_packets (char *rawCaptureFolder, char *sessionFolder) {
                 }
             } break;
         }
+        rawPacketFree(&packet);
     }
 }
 
