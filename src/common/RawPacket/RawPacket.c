@@ -4,10 +4,20 @@
 #include <windows.h>
 #include <sys/stat.h>
 
+#define RAW_PACKET_DEFAULT_SIZE 8192*100
+
 int rawPacketInit (RawPacket *self, RawPacketType type) {
     memset(self, 0, sizeof(*self));
-    self->cursor = self->data;
+
+    if (!(self->buffer = calloc(RAW_PACKET_DEFAULT_SIZE, 1))) {
+        error ("Cannot allocate buffer");
+        return 0;
+    }
+
+    self->cursor = self->buffer;
     self->type = type;
+    self->bufferSize = RAW_PACKET_DEFAULT_SIZE;
+
     return 1;
 }
 
@@ -16,7 +26,7 @@ int rawPacketRecv (RawPacket *self, SOCKET socket) {
     int bRecvd;
 
     // Receive packet from game client
-    if ((bRecvd = recv (socket, (char *) self->data, sizeof(self->data), 0)) < 0) {
+    if ((bRecvd = recv (socket, (char *) self->buffer, self->bufferSize, 0)) < 0) {
         error ("Error received from socket : %d", bRecvd);
         return 0;
     }
@@ -26,7 +36,7 @@ int rawPacketRecv (RawPacket *self, SOCKET socket) {
         return -1;
     }
 
-    else if (bRecvd == sizeof(self->data)) {
+    else if (bRecvd == self->bufferSize) {
         error ("Packet size not large enough !");
         return 0;
     }
@@ -39,7 +49,7 @@ int rawPacketRecv (RawPacket *self, SOCKET socket) {
 
 int rawPacketSend (RawPacket *self, SOCKET socket) {
     
-    if ((send (socket, (char *) self->data, self->dataSize, 0)) < 0) {
+    if ((send (socket, (char *) self->buffer, self->dataSize, 0)) < 0) {
         error ("Cannot send the packet to the socket.");
         return 0;
     }
@@ -58,13 +68,28 @@ int rawPacketWriteToFile (RawPacket *self, char *outputPath) {
 
     // Write the packet to the log file
     while (!(output = fopen (outputPath, "ab+"))) {
-        Sleep(1);
+        info ("Waiting for '%s' to be free ...", outputPath);
+        Sleep(1000);
     }
 
-    size_t size = rawPacketGetSize(self);
+    // Read the ID, size, then the type, then the data
+    if (fwrite (&self->id, sizeof(self->id), 1, output) != 1) {
+        error ("Cannot write the packet ID from the log file.");
+        goto cleanup;
+    }
 
-    if (fwrite (self, size, 1, output) != 1) {
-        error ("Cannot write the packet to the log file.");
+    if (fwrite (&self->dataSize, sizeof(self->dataSize), 1, output) != 1) {
+        error ("Cannot write the packet size from the log file.");
+        goto cleanup;
+    }
+
+    if (fwrite (&self->type, sizeof(self->type), 1, output) != 1) {
+        error ("Cannot write the packet type from the log file.");
+        goto cleanup;
+    }
+
+    if (fwrite (self->buffer, self->dataSize, 1, output) != 1) {
+        error ("Cannot write the packet data from the log file.");
         goto cleanup;
     }
 
@@ -190,7 +215,12 @@ int rawPacketReadFromFile (RawPacket *self, char *inputPath, size_t *cursor) {
         goto cleanup;
     }
 
-    if (fread (self->data, self->dataSize, 1, input) != 1) {
+    if (!(self->buffer = malloc (self->dataSize))) {
+        error ("Cannot allocate buffer size %d", self->dataSize);
+        goto cleanup;
+    }
+
+    if (fread (self->buffer, self->dataSize, 1, input) != 1) {
         error ("Cannot read the packet data from the log file.");
         goto cleanup;
     }
@@ -213,12 +243,12 @@ int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize, RawPacketType ty
         rawPacketInit (self, type);
     }
     
-    if (dataSize + self->dataSize > sizeof(self->data)) {
+    if (dataSize + self->dataSize > self->bufferSize) {
         error ("Packet buffer isn't large enough !");
         return 0;
     }
 
-    memcpy (&self->data[self->dataSize], data, dataSize);
+    memcpy (&self->buffer[self->dataSize], data, dataSize);
     self->dataSize += dataSize;
 
     return 1;
@@ -226,6 +256,8 @@ int rawPacketAdd (RawPacket *self, uint8_t *data, int dataSize, RawPacketType ty
 
 void rawPacketCopy (RawPacket *dest, RawPacket *src) {
     memcpy (dest, src, sizeof(*dest));
-    size_t offset = src->cursor - src->data;
-    dest->cursor = dest->data + offset;
+    size_t offset = src->cursor - src->buffer;
+    dest->buffer = malloc (src->bufferSize);
+    memcpy(dest->buffer, src->buffer, src->bufferSize);
+    dest->cursor = dest->buffer + offset;
 }

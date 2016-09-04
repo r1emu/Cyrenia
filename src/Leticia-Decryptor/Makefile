@@ -6,7 +6,7 @@ SRCDIR   := ./
 INCPATH  := ../
 OBJDIR   := .
 BINDIR   := ./
-BIN_DEBUGDIR := $(BINDIR)/debug
+BIN_DEBUGDIR := $(BINDIR)
 COMMON_DIR := ../common
 COMMON_SRC := dbg RawPacket PacketType crypto PacketProcessor zlib
 
@@ -46,13 +46,6 @@ release: CFLAGS += -s -O2
 release: $(BINDIR)/$(TARGET)
 
 $(BINDIR)/$(TARGET): buildrepo $(OBJS)
-	@mkdir -p `dirname $@`
-	@echo -e "\033[1;34mLinking '$@'\033[0m"
-	@$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
-	@echo -e "\033[1;32m ---> '$(TARGET)' sucessfully built !\033[0m"
-	make postclean
-
-$(BIN_DEBUGDIR)/$(TARGET): buildrepo $(OBJS)
 	@mkdir -p `dirname $@`
 	@echo -e "\033[1;34mLinking '$@'\033[0m"
 	@$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)

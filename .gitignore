@@ -4,4 +4,5 @@
 *.o
 src/Floana-Proxy/session_id
 src/Floana-Proxy/captures/*
+src/Floana-Proxy/client.url
 src/Leticia-Decryptor/captures/*

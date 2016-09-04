@@ -11,14 +11,20 @@
     <div id="log"></div>
 
     <div class="wrapper">
-        <table id="packets">
+        <table>
+          <thead>
             <tr>
-                <td>ID</td>
-                <td>Server</td>
+                <td>PktID</td>
+                <td>PktDir</td>
                 <td>Size</td>
-                <td>Type</td>
-                <td>Data</td>
+                <td>TypeID</td>
+                <td>TypeString</td>
+                <td>PktData</td>
+                <td>ASCII</td>
             </tr>
+          </thead>
+          <tbody id="packets">
+          </tbody>
         </table>
     </div>
 
@@ -31,7 +37,7 @@
                 if ("WebSocket" in window) {
                     ws = new WebSocket("ws://localhost:8088/");
                     ws.onopen = function() {
-                        $('#log').append('<li>websocket opened</div>');
+                        console.log("Websocket opened");
                     };
                     ws.onmessage = function(event) {
 
@@ -40,14 +46,16 @@
                             isBottom = true;
                         }
 
-                        // packet = JSON && JSON.parse(event.data) || $.parseJSON(event.data);
+                        packet = JSON && JSON.parse(event.data) || $.parseJSON(event.data);
                         packets.insertAdjacentHTML('beforeend', 
                               '<tr>'
-                            +   '<td>'+ packet.id +'</td>'
-                            +   '<td>'+ packet.server +'</td>'
-                            +   '<td>'+ packet.size +'</td>'
-                            +   '<td>'+ packet.type +'</td>'
-                            +   '<td>' + packet.data + '</td>'
+                            +   '<td>' + packet.id        + '</td>'
+                            +   '<td>' + packet.direction + '</td>'
+                            +   '<td>' + packet.size      + '</td>'
+                            +   '<td>' + packet.typeID    + '</td>'
+                            +   '<td>' + packet.type      + '</td>'
+                            +   '<td class="tt">' + packet.data   + '</td>'
+                            +   '<td class="tt">' + packet.ascii  + '</td>'
                             + '</tr>'
                         );
 
@@ -57,9 +65,7 @@
                         }
                     };
                     ws.onclose = function() {
-                        $('#log').append('<li>websocket closed</li>');
-                        console.log("reco");
-                        reconnect();
+                        console.log("Websocket closed");
                     };
                 } else {
                     $('#log').append('<li>WebSocket NOT supported in this browser</li>');

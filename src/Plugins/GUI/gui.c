@@ -66,14 +66,32 @@ int sendPacketToGui (uint8_t *packet, int packetSize, RawPacketType type, int64_
 
     char *packetTypeStr = PacketType_to_string (packetType);
 
-    char buffer[BUF_LEN];
-    char packetData[BUF_LEN];
+    char buffer[BUF_LEN] = {0};
+    char packetData[BUF_LEN/2] = {0};
+    char ascii[BUF_LEN/2] = {0};
     char *packetDataPtr = packetData;
+    char *asciiPtr = ascii;
     for (int i = 0; i < packetSize; i++) {
-        packetDataPtr += sprintf (packetDataPtr, (i != packetSize - 1) ? "%.2x " : "%.2x", packet[i]);
+        if (
+            (asciiPtr > ascii + sizeof(ascii) + 0x100) 
+        ||  (packetDataPtr > packetData + sizeof(packetData) + 0x100) 
+        ) {
+            warning ("Output truncated for packet '%s'", packetTypeStr);
+            break;
+        }
+
+        packetDataPtr += sprintf (packetDataPtr, "%.2x ", packet[i]);
+        asciiPtr      += sprintf (asciiPtr, "%c", (isprint(packet[i]) && packet[i] != '\r' && packet[i] != '\n' && packet[i] != '\t') ? packet[i] : '.');
+        if ((i+1) % 16 == 0) {
+            packetDataPtr += sprintf (packetDataPtr, "<br/>");
+            asciiPtr      += sprintf (asciiPtr, "<br/>");
+        }
     }
-    sprintf (buffer, "{\"id\" : \"%Id\", \"server\" : \"%d\", \"size\" : \"%d\", \"type\" : \"%s\", \"data\" : \"%s\"}", 
-        packetId, type, packetSize, packetTypeStr, packetData);
+
+    char *direction = (type == RAW_PACKET_CLIENT) ? "<b><font color='green'>C&#8594;S</font></b>" : "<b><font color='red'>S&#8594;C</font></b>";
+
+    sprintf (buffer, "{\"id\" : \"%Id\", \"direction\" : \"%s\", \"size\" : \"%d\", \"type\" : \"%s\", \"typeID\" : \"%#x\", \"data\" : \"%s\", \"ascii\" : \"%s\"}", 
+        packetId, direction, packetSize, packetTypeStr, packetType, packetData, ascii);
 
     sendTextToClient (app->client, (uint8_t *) buffer, strlen(buffer));
 

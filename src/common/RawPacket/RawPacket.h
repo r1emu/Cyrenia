@@ -31,7 +31,8 @@ typedef struct RawPacket {
     int64_t id;
 	int dataSize;
 	RawPacketType type;
- 	uint8_t data[8192*2];
+    size_t bufferSize;
+ 	uint8_t *buffer;
     uint8_t *cursor; 
 } RawPacket;
 #pragma pack(pop)

@@ -3,11 +3,17 @@
 #include "PacketType/PacketType.h"
 #include "dbg/dbg.h"
 #include "zlib/zlib.h"
+#include <stdbool.h>
 
 RawPacket packetBuffer = {
-    .dataSize = 0,
-    .cursor = packetBuffer.data
+    .dataSize = 0
 };
+
+bool isInit = 0;
+
+void packetProcessorInit () {
+    rawPacketInit (&packetBuffer, RAW_PACKET_UNK);
+}
 
 int getPacketBuffer (RawPacket *self) {
     
@@ -21,22 +27,27 @@ int getPacketBuffer (RawPacket *self) {
         return 1;
     }
 
-    if (self->dataSize + packetBuffer.dataSize > sizeof(self->data)) {
+    if (self->dataSize + packetBuffer.dataSize >self->bufferSize) {
         error ("Destination packet buffer isn't large enough !");
         return 0;
     }
 
     // Put the data at the start at the end of the packet buffer
-    memcpy (&self->data[packetBuffer.dataSize], &self->data[0], self->dataSize);
-    memcpy (&self->data[0], packetBuffer.data, packetBuffer.dataSize);
+    memcpy (&self->buffer[packetBuffer.dataSize], &self->buffer[0], self->dataSize);
+    memcpy (&self->buffer[0], packetBuffer.buffer, packetBuffer.dataSize);
     self->dataSize += packetBuffer.dataSize;
-    self->cursor = self->data;
+    self->cursor = self->buffer;
     rawPacketInit (&packetBuffer, RAW_PACKET_UNK);
 
     return 1;
 }
 
 int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void *user_data) {
+
+    if (!isInit) {
+        packetProcessorInit();
+        isInit = true;
+    }
 
     int status = 0;
 
@@ -76,8 +87,8 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
                 if (memcmp (copyPacket.cursor, decryptedCopy, cryptHeader.plainSize) != 0) {
                     // Buffer modified, change the original encrypted buffer
                     CryptPacket *cp = cryptoEncryptPacket (copyPacket.cursor, cryptHeader.plainSize);
-                    size_t offset = copyPacket.cursor - copyPacket.data; 
-                    memcpy (rawPacket->data + offset, cp, cryptPacketGetSize (cp));
+                    size_t offset = copyPacket.cursor - copyPacket.buffer; 
+                    memcpy (rawPacket->buffer + offset, cp, cryptPacketGetSize (cp));
                     info ("Client packet modified !");
                 }
 
@@ -117,7 +128,7 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
                         error ("An unknown packet has been encountered. (type = %d - 0x%x)", type, type);
                         error ("It is possibly due to a client/server patch.");
                         error ("Please update the packet decryptor engine.");
-                        buffer_print (copyPacket.data, copyPacket.dataSize, "RawPacketDump : ");
+                        buffer_print (copyPacket.buffer, copyPacket.dataSize, "RawPacketDump : ");
                         error ("Skipping the raw packet ...");
                         break;
                     }
@@ -155,8 +166,8 @@ int foreachDecryptedPacket (RawPacket *rawPacket, DecryptCallback callback, void
                         // Check if the callback modified the backup
                         if (memcmp (copyPacket.cursor, decryptedCopy, pktSize) != 0) {
                             // Buffer modified, change the original buffer
-                            size_t offset = copyPacket.cursor - copyPacket.data; 
-                            memcpy (rawPacket->data + offset, copyPacket.cursor, pktSize);
+                            size_t offset = copyPacket.cursor - copyPacket.buffer; 
+                            memcpy (rawPacket->buffer + offset, copyPacket.cursor, pktSize);
                         }
                     }
                 }

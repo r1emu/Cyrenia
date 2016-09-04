@@ -6,7 +6,7 @@ SRCDIR   := .
 INCPATH  := ..
 OBJDIR   := .
 BINDIR   := ./
-BIN_DEBUGDIR := $(BINDIR)/debug
+BIN_DEBUGDIR := $(BINDIR)
 COMMON_DIR := ../common
 COMMON_SRC := dbg RawPacket
 

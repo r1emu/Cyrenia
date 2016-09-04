@@ -86,7 +86,7 @@ if __name__ == '__main__':
             del barrackXmlNode.attrib[attribute];
     # Add only one IP/Port
     barrackXmlNode.set("Server0_IP", "127.0.0.1");
-    barrackXmlNode.set("Server0_Port", "2000");
+    barrackXmlNode.set("Server0_Port", "7001");
 
     # Write the serverlist into a file for the HTTP server
     with open('serverlist.xml', 'wb+') as serverListXmlFile:

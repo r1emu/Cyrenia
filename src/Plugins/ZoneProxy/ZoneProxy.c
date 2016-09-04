@@ -56,8 +56,9 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
             GetModuleFileName(NULL, executableName, sizeof(executableName));
 
             char commandLine[1000];
-            sprintf(commandLine, "%s %d.%d.%d.%d %d %d zone continue ../Plugins/GUI.dll", executableName, serverIp[0], serverIp[1], serverIp[2], serverIp[3], packet->zoneServerPort, packet->zoneServerPort);
+            sprintf(commandLine, "%s %d.%d.%d.%d %d %d zone continue ../Plugins/GUI.dll", GET_FILENAME(executableName), serverIp[0], serverIp[1], serverIp[2], serverIp[3], packet->zoneServerPort, packet->zoneServerPort);
 
+            /*
             STARTUPINFO si = {0};
             PROCESS_INFORMATION pi = {0};
             si.cb = sizeof(STARTUPINFO);
@@ -65,6 +66,7 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
             si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
             si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
             si.dwFlags |= STARTF_USESTDHANDLES;
+
             if (!CreateProcess (executableName, commandLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
                 error ("Cannot launch Zone Server executable : %s.", executableName);
                 char *errorReason;
@@ -74,11 +76,12 @@ int hookConnectToZoneServer (uint8_t *data, int dataSize, RawPacketType type, in
                 error ("Error reason : %s", errorReason);
                 return 0;
             }
+            */
 
-            special ("Zone connection hooked ! Starting a new proxy ...");
+            info ("Please launch the following command line :\n%s", commandLine);
 
             // Wait a bit for the process to spawn
-            Sleep (1000);
+            // Sleep (1000);
         }
         break;
     }
