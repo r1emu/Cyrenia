@@ -41,8 +41,12 @@ if __name__ == '__main__':
     # Get the server list from the XML
     barracksArray = serverListXml.findall("server");
     barracks = [[] for x in barracksArray]; # Build an array
+	
+    srvCount = 0;
     for id, barrack in enumerate(barracksArray):
+        srvCount += 1;
         serverCount = 0;
+        print "id %d" % id;
         while (barrack.attrib.has_key("Server%d_IP" % serverCount)):
             ip = "Server%d_IP" % serverCount;
             port = "Server%d_Port" % serverCount;
@@ -52,15 +56,19 @@ if __name__ == '__main__':
                 'xmlNode' : barrack
             });
             serverCount += 1;
+		
+			
+	
 
     # Print server list
+	
     print "================ Server list : ================"
+
     for id, server in enumerate(barracks):
         print "%d : " % id;
         for barrack in server:
             print "\t %s:%s" % (barrack["ip"], barrack["port"]);
     print "================================================"
-
     # Ask for the server ID
     serverIdUser = raw_input("\nEnter the server ID you wish to listen to : ");
 
@@ -70,8 +78,8 @@ if __name__ == '__main__':
         sys.exit(0);
 
     serverIdUser = int(serverIdUser);
-    if (serverIdUser < 0 or serverIdUser > serverCount): # Must be between 0 and the max server count
-        print "Please enter a digit between 0 and %d." % serverCount;
+    if (serverIdUser < 0 or serverIdUser > srvCount): # Must be between 0 and the max server count
+        print "Please enter a digit between 0 and %d." % srvCount;
         sys.exit(0);
 
     # Change the barracks Name in the XML
