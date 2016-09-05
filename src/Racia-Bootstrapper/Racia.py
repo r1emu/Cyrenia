@@ -46,7 +46,6 @@ if __name__ == '__main__':
     for id, barrack in enumerate(barracksArray):
         srvCount += 1;
         serverCount = 0;
-        print "id %d" % id;
         while (barrack.attrib.has_key("Server%d_IP" % serverCount)):
             ip = "Server%d_IP" % serverCount;
             port = "Server%d_Port" % serverCount;
@@ -56,12 +55,8 @@ if __name__ == '__main__':
                 'xmlNode' : barrack
             });
             serverCount += 1;
-		
-			
-	
 
     # Print server list
-	
     print "================ Server list : ================"
 
     for id, server in enumerate(barracks):
@@ -69,6 +64,7 @@ if __name__ == '__main__':
         for barrack in server:
             print "\t %s:%s" % (barrack["ip"], barrack["port"]);
     print "================================================"
+	
     # Ask for the server ID
     serverIdUser = raw_input("\nEnter the server ID you wish to listen to : ");
 
